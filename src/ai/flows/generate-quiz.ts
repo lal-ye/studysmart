@@ -37,6 +37,7 @@ export async function generateQuiz(input: GenerateQuizInput): Promise<GenerateQu
 
 const prompt = ai.definePrompt({
   name: 'generateQuizPrompt',
+  model: 'googleai/gemini-2.5-flash-preview-04-17', // Updated model
   input: {schema: GenerateQuizInputSchema},
   output: {schema: GenerateQuizOutputSchema},
   prompt: `You are a quiz generator. Please generate a quiz with {{quizLength}} questions based on the following course material:\n\n{{courseMaterial}}`,
@@ -50,6 +51,10 @@ const generateQuizFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (!output) {
+        throw new Error("Failed to generate quiz: No output from model.");
+    }
+    return output;
   }
 );
+
