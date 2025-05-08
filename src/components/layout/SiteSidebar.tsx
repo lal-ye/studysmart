@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -18,16 +19,15 @@ import {
   BarChart3,
   BookOpenText,
   LogOut,
-  Folders, // Using Folders icon for subjects/dashboard
+  Folders, 
+  Paintbrush, // Icon for Neobrutalism Test
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: 'Dashboard (Subjects)', icon: Folders },
-  // { href: '/notes', label: 'Dynamic Notes', icon: FileText }, // Removed
-  // { href: '/quizzes', label: 'Quizzes', icon: ListChecks }, // Removed
-  // { href: '/exams', label: 'Exams', icon: ClipboardEdit }, // Removed
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/neobrutalism-test', label: 'Neobrutalism Test', icon: Paintbrush, devOnly: true }, // Added new item
 ];
 
 export default function SiteSidebar() {
@@ -53,7 +53,8 @@ export default function SiteSidebar() {
                   asChild
                   className={cn(
                     'justify-start',
-                    (pathname === item.href || (item.href === '/' && pathname.startsWith('/subjects'))) && 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    (pathname === item.href || (item.href === '/' && pathname.startsWith('/subjects'))) && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                     item.devOnly && process.env.NODE_ENV !== 'development' && 'hidden' // Hide devOnly links in production
                   )}
                   tooltip={item.label}
                   aria-current={pathname === item.href ? 'page' : undefined}
