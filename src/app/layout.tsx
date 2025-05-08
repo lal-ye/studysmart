@@ -1,13 +1,8 @@
 import type { Metadata } from 'next';
-import { GeistSans } from 'geist/font/sans'; // Corrected import for GeistSans
+import { GeistSans } from 'geist/font/sans';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import AppLayout from '@/components/layout/AppLayout';
-
-const geistSans = GeistSans({ 
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
 
 export const metadata: Metadata = {
   title: 'StudySmarts',
@@ -20,8 +15,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark"> {/* Apply dark theme by default */}
-      <body className={`${geistSans.variable} font-sans`}> {/* Use --font-geist-sans from variable */}
+    <html lang="en" className={`${GeistSans.variable} dark`}> {/* Apply GeistSans.variable and dark theme */}
+      <body className="font-sans"> {/* font-sans will use the CSS variable defined by GeistSans.variable */}
         <AppLayout>
           {children}
         </AppLayout>
