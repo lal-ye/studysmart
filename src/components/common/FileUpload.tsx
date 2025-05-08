@@ -6,14 +6,14 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type React from 'react';
 import { useState, useTransition } from 'react';
-import { Button } from '@/components/ui/button'; // Corrected import path
+import { Button } from '@/components/ui/button'; 
 import { FileUp, X } from 'lucide-react';
 import { extractTextFromPdfAction } from '@/lib/actions';
 import LoadingSpinner from './LoadingSpinner';
 
 
 interface FileUploadProps {
-  onFileRead: (content: string) => void;
+  onFileRead: (content: string, fileName?: string) => void;
   acceptedFileTypes?: string; // e.g., ".txt,.pdf"
   maxFileSizeMB?: number;
 }
@@ -41,14 +41,14 @@ export default function FileUpload({
         return;
       }
 
-      setFileName(file.name); // Set filename early for user feedback
+      setFileName(file.name); 
 
       startProcessingTransition(async () => {
         if (file.type === 'text/plain') {
           const reader = new FileReader();
           reader.onload = (e) => {
             const text = e.target?.result as string;
-            onFileRead(text);
+            onFileRead(text, file.name);
             toast({
               title: 'Text File Loaded',
               description: `${file.name} content has been loaded.`,
@@ -69,7 +69,7 @@ export default function FileUpload({
             const pdfDataUri = e_reader.target?.result as string;
             try {
               const result = await extractTextFromPdfAction({ pdfDataUri });
-              onFileRead(result.extractedText);
+              onFileRead(result.extractedText, file.name);
               toast({
                 title: 'PDF Processed',
                 description: `Text extracted from ${file.name} and loaded.`,
@@ -81,7 +81,7 @@ export default function FileUpload({
                 description: (pdfError instanceof Error ? pdfError.message : 'Could not extract text from the PDF using AI.'),
                 variant: 'destructive',
               });
-              clearFile(event.target); // Clear file details on error
+              clearFile(event.target); 
             }
           };
           reader.onerror = () => {
@@ -92,7 +92,7 @@ export default function FileUpload({
             });
             clearFile(event.target);
           };
-          reader.readAsDataURL(file); // Read as Data URL for GenAI
+          reader.readAsDataURL(file); 
         } else {
           toast({
             title: 'Unsupported File Type',
@@ -108,10 +108,10 @@ export default function FileUpload({
   const clearFile = (inputElement: HTMLInputElement | null = null) => {
     const fileInput = inputElement || document.getElementById('courseMaterialFile') as HTMLInputElement | null;
     if (fileInput) {
-      fileInput.value = ""; // Reset file input
+      fileInput.value = ""; 
     }
     setFileName(null);
-    onFileRead(""); // Clear the content in the parent component
+    onFileRead(""); 
   };
 
   return (
@@ -145,3 +145,4 @@ export default function FileUpload({
     </div>
   );
 }
+

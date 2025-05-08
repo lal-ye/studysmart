@@ -6,11 +6,21 @@ import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExam
 import { generateExtraReadings as generateExtraReadingsFlow, type GenerateExtraReadingsInput, type GenerateExtraReadingsOutput } from '@/ai/flows/generate-extra-readings';
 import { extractTextFromPdf as extractTextFromPdfFlow, type ExtractTextFromPdfInput, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
 
+// Interface for the action to accept an optional sourceName
+export interface GenerateNotesActionInput {
+  material: string;
+  sourceName?: string;
+}
+
 export async function generateNotesAction(
-  input: GenerateDynamicNotesInput
+  input: GenerateNotesActionInput
 ): Promise<string> {
   try {
-    const result = await generateDynamicNotesFlow(input);
+    const flowInput: GenerateDynamicNotesInput = {
+      material: input.material,
+      sourceName: input.sourceName,
+    };
+    const result = await generateDynamicNotesFlow(flowInput);
     return result.notes;
   } catch (error) {
     console.error('Error in generateNotesAction:', error);
@@ -69,3 +79,4 @@ export async function extractTextFromPdfAction(
     throw new Error(`Failed to extract text from PDF: ${message}`);
   }
 }
+
