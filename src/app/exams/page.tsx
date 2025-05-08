@@ -17,15 +17,24 @@ import { CheckCircle, XCircle, BookOpen, FileText, ExternalLink, ClipboardCheck,
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import type { ToastProps } from '@/components/ui/toast'; // For ToastArgs variant
 
 type ExamState = 'idle' | 'generating_exam' | 'taking_exam' | 'grading_exam' | 'showing_results';
+
+interface ToastArgsForPage {
+  title: string;
+  description: string;
+  variant?: ToastProps['variant'];
+  // Add other toast properties used in this page if necessary e.g. icon, action
+}
+
 
 export default function ExamsPage() {
   const [courseMaterial, setCourseMaterial] = useState('');
   const [examState, setExamState] = useState<ExamState>('idle');
   
   const [currentExamQuestions, setCurrentExamQuestions] = useState<ExamQuestion[]>([]);
-  const [persistedExamQuestions, setPersistedExamQuestions] = useState<ExamQuestion[]>([]); // To store the exact questions the user took
+  const [persistedExamQuestions, setPersistedExamQuestions] = useState<ExamQuestion[]>([]); 
   const [examResultsData, setExamResultsData] = useState<GenerateExamAndAnalyzeOutput | null>(null);
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -34,6 +43,15 @@ export default function ExamsPage() {
   const [isProcessingAction, startProcessingActionTransition] = useTransition();
   const [isFetchingReadings, startFetchingReadingsTransition] = useTransition();
   const { toast } = useToast();
+  const [toastArgs, setToastArgs] = useState<ToastArgsForPage | null>(null);
+
+
+  useEffect(() => {
+    if (toastArgs) {
+      toast(toastArgs);
+      setToastArgs(null); 
+    }
+  }, [toastArgs, toast]);
 
 
   const handleGenerateExam = () => {
@@ -43,32 +61,29 @@ export default function ExamsPage() {
     }
     setExamState('generating_exam');
     setCurrentExamQuestions([]);
-    setPersistedExamQuestions([]); // Reset persisted questions
+    setPersistedExamQuestions([]); 
     setExamResultsData(null);
     setUserAnswers({});
     setCurrentQuestionIndex(0);
 
     startProcessingActionTransition(async () => {
       try {
-        // For initial generation, only courseMaterial and numberOfQuestions are needed.
-        // No userAnswers and no pre-existing exam.
         const input: GenerateAndAnalyzeExamActionInput = { 
             courseMaterial, 
             numberOfQuestions: 30 
-            // userAnswers and exam are omitted for generation phase
         };
         const result = await generateAndAnalyzeExamAction(input);
         if (result.exam && result.exam.length > 0) {
           setCurrentExamQuestions(result.exam);
-          setPersistedExamQuestions(result.exam); // Persist the generated questions
+          setPersistedExamQuestions(result.exam); 
           setExamState('taking_exam');
-          toast({ title: 'Exam Ready!', description: 'You can now start the exam.' });
+          setToastArgs({ title: 'Exam Ready!', description: 'You can now start the exam.' });
         } else {
-          toast({ title: 'Generation Issue', description: 'No questions were generated. Try different material.', variant: 'destructive' });
+          setToastArgs({ title: 'Generation Issue', description: 'No questions were generated. Try different material.', variant: 'destructive' });
           setExamState('idle');
         }
       } catch (error) {
-        toast({ title: 'Error Generating Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
+        setToastArgs({ title: 'Error Generating Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
         setExamState('idle');
       }
     });
@@ -81,7 +96,7 @@ export default function ExamsPage() {
   const handleSubmitExam = () => {
     if (persistedExamQuestions.length === 0) {
         toast({ title: 'Error', description: 'No exam questions found to submit.', variant: 'destructive'});
-        setExamState('idle'); // Or back to taking_exam if appropriate
+        setExamState('idle'); 
         return;
     }
     setExamState('grading_exam');
@@ -89,17 +104,17 @@ export default function ExamsPage() {
       try {
         const answersArray = persistedExamQuestions.map((_, index) => userAnswers[index] || ""); 
         const input: GenerateAndAnalyzeExamActionInput = { 
-          courseMaterial, // Still pass course material, might be needed by LLM for context/analysis
-          numberOfQuestions: persistedExamQuestions.length, // Number of questions is from the persisted exam
+          courseMaterial, 
+          numberOfQuestions: persistedExamQuestions.length, 
           userAnswers: answersArray,
-          exam: persistedExamQuestions, // Pass the exact questions the user took
+          exam: persistedExamQuestions, 
         };
         const result = await generateAndAnalyzeExamAction(input);
         setExamResultsData(result);
         setExamState('showing_results');
-        toast({ title: 'Exam Graded!', description: 'Your results are ready below.' });
+        setToastArgs({ title: 'Exam Graded!', description: 'Your results are ready below.' });
       } catch (error) {
-        toast({ title: 'Error Grading Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
+        setToastArgs({ title: 'Error Grading Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
         setExamState('taking_exam'); 
       }
     });
@@ -112,7 +127,7 @@ export default function ExamsPage() {
         
         setExamResultsData(prevData => {
           if (!prevData) { 
-            toast({ title: "Error", description: "Exam data not available to add readings.", variant: "destructive" });
+            setToastArgs({ title: "Error", description: "Exam data not available to add readings.", variant: "destructive" });
             return null;
           }
 
@@ -120,12 +135,12 @@ export default function ExamsPage() {
           const newArticlesToAdd = readingsResult.articles.filter(newArticle => !existingUrls.has(newArticle.url) && newArticle.title !== "No Relevant Articles Found");
 
           if (readingsResult.articles.length === 0 || (readingsResult.articles.length === 1 && readingsResult.articles[0].title === "No Relevant Articles Found" && newArticlesToAdd.length === 0) ) {
-             toast({ title: `No New Readings Found`, description: `Could not find any new articles for "${topic}".` });
+             setToastArgs({ title: `No New Readings Found`, description: `Could not find any new articles for "${topic}".` });
              return prevData; 
           }
           
           if (newArticlesToAdd.length === 0 && readingsResult.articles.length > 0 && readingsResult.articles[0].title !== "No Relevant Articles Found") { 
-            toast({ title: `Readings for ${topic} already listed.`, description: "No new unique articles found." });
+            setToastArgs({ title: `Readings for ${topic} already listed.`, description: "No new unique articles found." });
             return prevData; 
           }
 
@@ -139,12 +154,12 @@ export default function ExamsPage() {
           const updatedReadings = [...(prevData.extraReadings || []).filter(ar => ar.title !== "No Relevant Articles Found"), ...processedNewArticles];
           
           if (processedNewArticles.length > 0) {
-            toast({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
+            setToastArgs({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
           }
           return { ...prevData, extraReadings: updatedReadings };
         });
       } catch (error) {
-        toast({ title: `Error Fetching Readings for ${topic}`, description: (error as Error).message, variant: 'destructive' });
+        setToastArgs({ title: `Error Fetching Readings for ${topic}`, description: (error as Error).message, variant: 'destructive' });
       }
     });
   };
