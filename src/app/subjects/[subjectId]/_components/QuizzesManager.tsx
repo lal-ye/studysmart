@@ -3,7 +3,7 @@
 
 import { useState, useTransition, type CSSProperties, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remarkGfm';
+import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
