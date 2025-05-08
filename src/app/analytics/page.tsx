@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
-import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, /* Line,*/ LineChart as RechartsLineChart, Line as RechartsLine } from 'recharts';
+import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, /* Line,*/ LineChart as RechartsLineChart, Line as RechartsLine, Bar as RechartsBar } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { getAnalyticsDataAction, type AnalyticsSummary, type DatedScore, type TopicPerformance, type QuizScoreDistributionItem } from '@/lib/actions';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -236,4 +236,5 @@ function InfoCard({ title, value, icon, description }: InfoCardProps) {
     </Card>
   );
 }
+
 
