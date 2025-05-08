@@ -32,9 +32,12 @@ export default function FileUpload({
     // Set the workerSrc for pdfjsLib
     // This is necessary for the PDF processing to work correctly in a bundled environment like Next.js
     // It points to a CDN-hosted version of the worker script.
-    // The version is dynamically taken from the imported pdfjsLib to ensure compatibility.
+    // The version is hardcoded to match the installed package version as pdfjsLib.version was problematic.
     if (typeof window !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        // Installed pdfjs-dist version is ^4.4.170.
+        // The error message indicated an attempt to fetch version 4.10.38, which is incorrect.
+        // Hardcoding to a known good version from the installed package range.
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.170/pdf.worker.min.js`;
     }
   }, []);
 
@@ -163,3 +166,4 @@ export default function FileUpload({
     </div>
   );
 }
+
