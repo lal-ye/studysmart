@@ -1,46 +1,13 @@
 'use client';
 
+import { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, LineChart, PieChart, Activity, TrendingUp, TrendingDown } from 'lucide-react';
-import { ResponsiveContainer, BarChart as RechartsBarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, LineChart as RechartsLineChart, Line } from 'recharts';
+import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-
-// Mock data - replace with actual data fetching and processing logic
-const mockQuizScores = [
-  { name: 'Quiz 1', score: 80, date: '2024-07-01' },
-  { name: 'Quiz 2', score: 75, date: '2024-07-08' },
-  { name: 'Quiz 3', score: 90, date: '2024-07-15' },
-  { name: 'Quiz 4', score: 85, date: '2024-07-22' },
-];
-
-const mockExamScores = [
-  { name: 'Midterm Exam', score: 78, date: '2024-07-10' },
-  { name: 'Final Exam', score: 88, date: '2024-07-30' },
-];
-
-const mockTopicPerformance = [
-  { topic: 'Algebra', correct: 15, total: 20 },
-  { topic: 'Calculus', correct: 12, total: 20 },
-  { topic: 'Geometry', correct: 18, total: 20 },
-  { topic: 'Statistics', correct: 10, total: 15 },
-];
-
-const topicPerformanceChartData = mockTopicPerformance.map(item => ({
-  name: item.topic,
-  accuracy: (item.correct / item.total) * 100,
-}));
-
-const topicPerformanceChartConfig = {
-  accuracy: {
-    label: "Accuracy",
-    color: "hsl(var(--chart-1))",
-  },
-} satisfies ChartConfig;
-
-const overallProgressChartData = [
-  ...mockQuizScores.map(q => ({ date: q.date, type: 'Quiz', score: q.score })),
-  ...mockExamScores.map(e => ({ date: e.date, type: 'Exam', score: e.score })),
-].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+import { getAnalyticsDataAction, type AnalyticsSummary, type DatedScore, type TopicPerformance, type QuizScoreDistributionItem } from '@/lib/actions';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useToast } from '@/hooks/use-toast';
 
 const overallProgressChartConfig = {
   score: {
@@ -49,18 +16,85 @@ const overallProgressChartConfig = {
   }
 } satisfies ChartConfig;
 
-const overallScore = (mockQuizScores.reduce((sum, q) => sum + q.score, 0) + mockExamScores.reduce((sum, e) => sum + e.score, 0)) / (mockQuizScores.length + mockExamScores.length);
-const totalQuizzesTaken = mockQuizScores.length;
-const totalExamsTaken = mockExamScores.length;
+const topicPerformanceChartConfig = {
+  accuracy: {
+    label: "Accuracy",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies ChartConfig;
 
 
 export default function AnalyticsPage() {
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary | null>(null);
+  const [isFetching, startFetchingTransition] = useTransition();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    startFetchingTransition(async () => {
+      try {
+        const data = await getAnalyticsDataAction();
+        setAnalyticsData(data);
+      } catch (error) {
+        console.error("Failed to fetch analytics data:", error);
+        toast({
+          title: "Error Fetching Analytics",
+          description: (error as Error).message || "Could not load analytics data.",
+          variant: "destructive",
+        });
+        setAnalyticsData(null); // Reset or handle error state
+      }
+    });
+  }, [toast]);
+
+  if (isFetching) {
+    return (
+      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <LoadingSpinner size={48} />
+        <p className="ml-4 text-lg">Loading analytics dashboard...</p>
+      </div>
+    );
+  }
+
+  if (!analyticsData) {
+    return (
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Analytics Dashboard</CardTitle>
+        </CardHeader>
+        <CardContent className="text-center py-10">
+          <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <p className="text-xl text-muted-foreground">No analytics data available or failed to load.</p>
+          <p className="text-sm text-muted-foreground mt-2">Please try again later or ensure there are completed quizzes/exams.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  const {
+    overallAverageScore,
+    quizzesTaken,
+    examsTaken,
+    overallScoreProgress,
+    topicPerformance,
+    areasForImprovement,
+    quizScoreDistribution,
+  } = analyticsData;
+
+  const PIE_CHART_COLORS = [
+    "hsl(var(--chart-1))",
+    "hsl(var(--chart-2))",
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+    "hsl(var(--chart-5))",
+  ];
+
+
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <BarChart className="h-8 w-8 text-primary" />
+            <BarChartIcon className="h-8 w-8 text-primary" />
             <div>
               <CardTitle className="text-2xl font-bold">Analytics Dashboard</CardTitle>
               <CardDescription>
@@ -72,9 +106,9 @@ export default function AnalyticsPage() {
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <InfoCard title="Overall Average Score" value={`${overallScore.toFixed(1)}%`} icon={<Activity className="h-6 w-6 text-primary" />} />
-        <InfoCard title="Quizzes Taken" value={totalQuizzesTaken.toString()} icon={<TrendingUp className="h-6 w-6 text-green-500" />} />
-        <InfoCard title="Exams Taken" value={totalExamsTaken.toString()} icon={<TrendingDown className="h-6 w-6 text-red-500" />} />
+        <InfoCard title="Overall Average Score" value={`${overallAverageScore.toFixed(1)}%`} icon={<Activity className="h-6 w-6 text-primary" />} />
+        <InfoCard title="Quizzes Taken" value={quizzesTaken.toString()} icon={<TrendingUp className="h-6 w-6 text-primary" />} />
+        <InfoCard title="Exams Taken" value={examsTaken.toString()} icon={<TrendingDown className="h-6 w-6 text-primary" />} />
       </div>
 
       <Card className="shadow-md">
@@ -82,15 +116,19 @@ export default function AnalyticsPage() {
           <CardTitle>Overall Score Progress</CardTitle>
         </CardHeader>
         <CardContent className="h-[350px]">
-          <ChartContainer config={overallProgressChartConfig} className="w-full h-full">
-            <RechartsLineChart data={overallProgressChartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-              <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
-              <YAxis domain={[0, 100]} unit="%" />
-              <Tooltip content={<ChartTooltipContent indicator="line" />} />
-              <Legend />
-              <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} />
-            </RechartsLineChart>
-          </ChartContainer>
+          {overallScoreProgress.length > 0 ? (
+            <ChartContainer config={overallProgressChartConfig} className="w-full h-full">
+              <RechartsLineChart data={overallScoreProgress} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
+                <YAxis domain={[0, 100]} unit="%" />
+                <Tooltip content={<ChartTooltipContent indicator="line" />} />
+                <Legend />
+                <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
+              </RechartsLineChart>
+            </ChartContainer>
+          ) : (
+            <p className="text-center text-muted-foreground py-10">No score progress data available.</p>
+          )}
         </CardContent>
       </Card>
       
@@ -99,15 +137,19 @@ export default function AnalyticsPage() {
           <CardTitle>Topic Performance (Accuracy %)</CardTitle>
         </CardHeader>
         <CardContent className="h-[350px]">
-          <ChartContainer config={topicPerformanceChartConfig} className="w-full h-full">
-            <RechartsBarChart data={topicPerformanceChartData} layout="vertical" margin={{ right: 30 }}>
-              <XAxis type="number" domain={[0, 100]} unit="%" />
-              <YAxis dataKey="name" type="category" width={80} tickLine={false} axisLine={false}/>
-              <Tooltip content={<ChartTooltipContent indicator="dot" />} />
-              <Legend />
-              <Bar dataKey="accuracy" fill="var(--color-accuracy)" radius={4} />
-            </RechartsBarChart>
-          </ChartContainer>
+         {topicPerformance.length > 0 ? (
+            <ChartContainer config={topicPerformanceChartConfig} className="w-full h-full">
+              <RechartsBarChart data={topicPerformance} layout="vertical" margin={{ right: 30 }}>
+                <XAxis type="number" domain={[0, 100]} unit="%" />
+                <YAxis dataKey="topic" type="category" width={100} tickLine={false} axisLine={false}/>
+                <Tooltip content={<ChartTooltipContent indicator="dot" />} />
+                <Legend />
+                <Bar dataKey="accuracy" fill="var(--color-accuracy)" radius={4} name="Accuracy" />
+              </RechartsBarChart>
+            </ChartContainer>
+         ) : (
+            <p className="text-center text-muted-foreground py-10">No topic performance data available.</p>
+         )}
         </CardContent>
       </Card>
 
@@ -117,37 +159,54 @@ export default function AnalyticsPage() {
             <CardTitle>Quiz Score Distribution</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
-            <ChartContainer config={{}} className="w-full h-full">
-                <RechartsPieChart>
-                    <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
-                    <Pie data={mockQuizScores} dataKey="score" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                        {mockQuizScores.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${index % 5 + 1}))`} />
-                        ))}
-                    </Pie>
-                    <Legend/>
-                </RechartsPieChart>
-            </ChartContainer>
+            {quizScoreDistribution.length > 0 ? (
+              <ChartContainer config={{}} className="w-full h-full">
+                  <RechartsPieChart>
+                      <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                      <Pie data={quizScoreDistribution} dataKey="score" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                          {quizScoreDistribution.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
+                          ))}
+                      </Pie>
+                      <Legend/>
+                  </RechartsPieChart>
+              </ChartContainer>
+            ) : (
+              <p className="text-center text-muted-foreground py-10">No quiz score data available.</p>
+            )}
           </CardContent>
         </Card>
 
         <Card className="shadow-md">
           <CardHeader>
             <CardTitle>Areas for Improvement</CardTitle>
-            <CardDescription>Based on lowest topic scores.</CardDescription>
+            <CardDescription>Top topics with the lowest accuracy based on exam performance.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2">
-              {mockTopicPerformance
-                .sort((a, b) => (a.correct / a.total) - (b.correct / b.total))
-                .slice(0, 3) // Show top 3 areas for improvement
-                .map(item => (
-                  <li key={item.topic} className="flex justify-between items-center p-2 bg-muted/50 rounded-md">
-                    <span>{item.topic}</span>
-                    <span className="font-semibold text-destructive">{((item.correct / item.total) * 100).toFixed(1)}%</span>
-                  </li>
-              ))}
-            </ul>
+            {areasForImprovement.length > 0 ? (
+              <ul className="space-y-2">
+                {areasForImprovement.map(item => (
+                    <li key={item.topic} className="flex justify-between items-center p-3 bg-muted/50 rounded-md shadow-sm">
+                      <div>
+                        <span className="font-medium">{item.topic}</span>
+                        <p className="text-xs text-muted-foreground">
+                          {item.correct} / {item.total} correct
+                        </p>
+                      </div>
+                      <span className={`font-semibold ${item.accuracy < 50 ? 'text-destructive' : item.accuracy < 75 ? 'text-yellow-500' : 'text-green-500'}`}>
+                        {item.accuracy.toFixed(1)}%
+                      </span>
+                    </li>
+                ))}
+              </ul>
+            ) : (
+              topicPerformance.length > 0 ? (
+                <p className="text-center text-green-600 font-semibold py-10">Great job! No specific areas for improvement based on current data.</p>
+              ) : (
+                <p className="text-center text-muted-foreground py-10">No data available to determine areas for improvement.</p>
+              )
+              
+            )}
           </CardContent>
         </Card>
       </div>
