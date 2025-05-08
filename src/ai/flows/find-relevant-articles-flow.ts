@@ -36,17 +36,18 @@ const findRelevantArticlesPrompt = ai.definePrompt({
   input: {schema: FindRelevantArticlesInputSchema},
   output: {schema: FindRelevantArticlesOutputSchema},
   prompt: `You are an expert research assistant.
-For the topic "{{{topic}}}", provide a list of 2-3 highly relevant articles that would be suitable for further reading.
-For each article, give a concise title and a plausible, well-formed URL.
-The articles should appear to be from reputable sources (e.g., academic journals, well-known educational websites, official documentation).
-Focus on providing high-quality, informative resources.
+For the topic "{{{topic}}}", provide a list of 2-3 highly relevant articles suitable for further reading.
+For each article, give a concise title and a plausible, well-formed URL starting with 'https://'.
+The articles must appear to be from reputable sources (e.g., academic journals, well-known educational websites, official documentation).
+Do not use placeholder URLs like 'example.com'. Ensure the URLs are complete and appear valid.
 
-Output the result as a JSON object with an "articles" array, where each element has "title" and "url".
+Output the result as a JSON object with an "articles" array, where each element has "title" and "url" fields.
 Example:
 {
   "articles": [
-    { "title": "Introduction to Topic X", "url": "https://example.edu/intro-topic-x" },
-    { "title": "Advanced Concepts in Topic X", "url": "https://journaloftopicx.org/article123" }
+    { "title": "Introduction to Machine Learning", "url": "https://arxiv.org/abs/1234.56789" },
+    { "title": "Advanced Machine Learning Techniques", "url": "https://proceedings.mlr.press/v123/article456.html" },
+    { "title": "Machine Learning Basics", "url": "https://www.coursera.org/learn/machine-learning" }
   ]
 }
 `,
@@ -73,12 +74,35 @@ const findRelevantArticlesFlow = ai.defineFlow(
     if (output.articles === undefined || output.articles === null) {
       console.warn('[StudySmarts Debug - findRelevantArticlesFlow] Model output.articles is undefined or null for topic "'+ input.topic +'". Setting to empty array.');
       output.articles = [];
-    } else if (output.articles.length === 0) {
-      console.warn('[StudySmarts Debug - findRelevantArticlesFlow] Model returned an empty "articles" array for topic "'+ input.topic +'".');
-    } else {
-      console.log('[StudySmarts Debug - findRelevantArticlesFlow] Model returned '+ output.articles.length +' articles for topic "'+ input.topic +'".');
     }
+
+    // Validate URLs and filter out invalid ones
+    const isValidUrl = (url: string): boolean => {
+      try {
+        new URL(url);
+        return url.startsWith('https://');
+      } catch {
+        return false;
+      }
+    };
+
+    output.articles = output.articles.filter(article => isValidUrl(article.url));
+
+    if (output.articles.length === 0) {
+      console.warn('[StudySmarts Debug - findRelevantArticlesFlow] No valid articles with well-formed URLs for topic "'+ input.topic +'". Providing fallback.');
+      // It's better to return an empty array and let the UI handle it, or throw an error if articles are critical.
+      // Providing a generic fallback might not always be desired.
+      // For now, let's return an empty array as per original behavior if no valid articles found.
+      // If a fallback is truly desired, it should be more contextual or clearly marked as a fallback.
+      // Example fallback:
+      // output.articles = [{
+      //   title: `Search for "${input.topic}" on a search engine`,
+      //   url: `https://www.google.com/search?q=${encodeURIComponent(input.topic)}`
+      // }];
+    } else {
+      console.log('[StudySmarts Debug - findRelevantArticlesFlow] Model returned '+ output.articles.length +' valid articles for topic "'+ input.topic +'".');
+    }
+
     return output;
   }
 );
-
