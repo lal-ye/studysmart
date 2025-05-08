@@ -1,6 +1,7 @@
+// src/app/notes/page.tsx
 'use client';
 
-import React, { useState, useTransition, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useTransition, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,7 +10,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { generateNotesAction, type GenerateNotesActionInput } from '@/lib/actions';
 import FileUpload from '@/components/common/FileUpload';
-import { Lightbulb, Sparkles } from 'lucide-react';
+import { Lightbulb, Sparkles, Download, Copy,Printer } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { cn } from '@/lib/utils';
@@ -20,11 +21,12 @@ export default function NotesPage() {
   const [courseMaterial, setCourseMaterial] = useState('');
   const [sourceName, setSourceName] = useState<string | undefined>(undefined);
   const [generatedNotes, setGeneratedNotes] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const [isGeneratingNotes, startGeneratingNotesTransition] = useTransition();
   const { toast } = useToast();
   const [mermaidScriptLoaded, setMermaidScriptLoaded] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [generationProgress, setGenerationProgress] = useState(0); // Track progress (0 to 100)
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const notesOutputRef = useRef<HTMLDivElement>(null);
 
 
   useEffect(() => {
@@ -51,13 +53,13 @@ export default function NotesPage() {
   }, []);
 
   useEffect(() => {
-    if (mermaidScriptLoaded && generatedNotes) {
+    if (mermaidScriptLoaded && generatedNotes && notesOutputRef.current) {
       try {
         // @ts-ignore
         if (window.mermaid) {
            // @ts-ignore
           window.mermaid.run({
-            nodes: Array.from(document.querySelectorAll('.language-mermaid')),
+            nodes: Array.from(notesOutputRef.current.querySelectorAll('.language-mermaid')),
           });
         }
       } catch (error) {
@@ -99,32 +101,34 @@ export default function NotesPage() {
       return;
     }
 
-    setGenerationProgress(0); // Reset progress
-    startTransition(async () => {
+    setGenerationProgress(0);
+    setGeneratedNotes(''); 
+    startGeneratingNotesTransition(async () => {
       try {
         const input: GenerateNotesActionInput = { material: courseMaterial, sourceName };
-        // Simulate progress and then call the actual generation
+        
+        let currentProgress = 0;
         const progressInterval = setInterval(() => {
-          setGenerationProgress(prev => Math.min(prev + 10, 95)); // Simulate progress
-        }, 300);
+          currentProgress = Math.min(currentProgress + 5, 95);
+          setGenerationProgress(currentProgress);
+        }, 200);
 
         const notes = await generateNotesAction(input);
         clearInterval(progressInterval);
-
         setGeneratedNotes(notes);
-        setGenerationProgress(100); // Set to 100% on completion
+        setGenerationProgress(100);
         toast({
           title: 'Notes Generated!',
           description: 'Your dynamic notes are ready below.',
         });
       } catch (error) {
+        setGenerationProgress(0);
         toast({
           title: 'Error Generating Notes',
           description: (error as Error).message || 'An unexpected error occurred.',
           variant: 'destructive',
         });
         setGeneratedNotes('');
-        setGenerationProgress(0);
       }
     });
   };
@@ -138,12 +142,78 @@ export default function NotesPage() {
     }
   };
 
-    const progressBarStyle = {
-        width: `${generationProgress}%`,
-    };
+  const handleExportMarkdown = () => {
+    if (!generatedNotes) return;
+    const blob = new Blob([generatedNotes], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${sourceName || 'StudySmarts-Notes'}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast({ title: 'Markdown Exported', description: 'Notes saved as .md file.' });
+  };
+
+  const handleCopyToClipboard = () => {
+    if (!generatedNotes) return;
+    navigator.clipboard.writeText(generatedNotes).then(() => {
+      toast({ title: 'Copied to Clipboard', description: 'Notes copied successfully!' });
+    }).catch(err => {
+      toast({ title: 'Copy Failed', description: 'Could not copy notes to clipboard.', variant: 'destructive' });
+      console.error('Failed to copy notes: ', err);
+    });
+  };
+
+  const handleExportPdf = () => {
+    if (!generatedNotes) return;
+    // Simple approach: use browser's print to PDF functionality
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write('<html><head><title>Print Notes</title>');
+      // Optional: Add basic styling for print
+      printWindow.document.write('<style> body { font-family: sans-serif; margin: 20px; } .prose { max-width: 100%; } /* Add more styles as needed */ </style>');
+      printWindow.document.write('</head><body>');
+      // Use a div with prose styles to render markdown for printing
+      const printableElement = document.createElement('div');
+      printableElement.className = "prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none";
+      
+      // Temporarily render markdown to HTML for printing
+      // This is a simplified way; for complex styling, a library like html2pdf.js or server-side PDF generation would be better.
+      // Here, we directly put the markdown content hoping the print preview handles it or let user copy-paste into a proper markdown-to-pdf tool.
+      // A more robust client-side way would be to render the ReactMarkdown to a hidden div and print that div's content.
+      // For now, we'll just put the raw markdown in the print window or print the current view.
+      
+      // Better: Print the rendered content
+      const notesContent = notesOutputRef.current?.innerHTML;
+      if (notesContent) {
+        printWindow.document.write(notesContent);
+      } else {
+        // Fallback to raw markdown if rendered content not found
+        printWindow.document.write(`<pre>${generatedNotes.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`);
+      }
+      
+      printWindow.document.write('</body></html>');
+      printWindow.document.close();
+      printWindow.focus();
+      // Slight delay to ensure content is loaded before printing
+      setTimeout(() => {
+        printWindow.print();
+        // printWindow.close(); // Optionally close window after print dialog
+      }, 500);
+       toast({ title: 'Print to PDF', description: 'Use your browser\'s print dialog to save as PDF.' });
+    } else {
+      toast({ title: 'Print Failed', description: 'Could not open print window. Please check pop-up blockers.', variant: 'destructive' });
+    }
+  };
+
+  const progressBarStyle = {
+    width: `${generationProgress}%`,
+  };
 
   const generateButtonContent = () => {
-    if (isPending) {
+    if (isGeneratingNotes) {
       return (
         <>
           <LoadingSpinner className="mr-2" aria-label="Generating notes..." />
@@ -160,7 +230,6 @@ export default function NotesPage() {
     }
   };
 
-
   const LabelElement = React.forwardRef<HTMLLabelElement, React.ComponentPropsWithoutRef<typeof Label>>(
       ({ className, ...props }, ref) => {
         return (
@@ -174,8 +243,7 @@ export default function NotesPage() {
   );
   LabelElement.displayName = "LabelElement";
 
-
-  const generateTextareaElement = React.forwardRef<HTMLTextAreaElement, React.ComponentPropsWithoutRef<typeof Textarea>>(
+  const GenerateTextareaElement = React.forwardRef<HTMLTextAreaElement, React.ComponentPropsWithoutRef<typeof Textarea>>(
       ({className, ...props}, ref) => {
           return (
               <Textarea
@@ -186,8 +254,7 @@ export default function NotesPage() {
           )
       }
   )
-  generateTextareaElement.displayName = "generateTextareaElement";
-
+  GenerateTextareaElement.displayName = "GenerateTextareaElement";
 
   return (
     <div className="space-y-6">
@@ -204,12 +271,12 @@ export default function NotesPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <FileUpload onFileRead={handleFileRead} />
+          <FileUpload onFileRead={handleFileRead} aria-label="Upload course material file"/>
           <div>
             <LabelElement htmlFor="courseMaterialText">
               Course Material (Paste Text)
             </LabelElement>
-            <generateTextareaElement
+            <GenerateTextareaElement
               id="courseMaterialText"
               placeholder="Paste your course material here..."
               value={textInput}
@@ -220,31 +287,32 @@ export default function NotesPage() {
           </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={handleGenerateNotes} disabled={isPending || !courseMaterial.trim()} aria-label="Generate dynamic notes">
+          <Button onClick={handleGenerateNotes} disabled={isGeneratingNotes || !courseMaterial.trim()} aria-label="Generate dynamic notes button">
             {generateButtonContent()}
           </Button>
         </CardFooter>
       </Card>
 
-      {isPending && (
+      {isGeneratingNotes && generationProgress < 100 && (
         <Card>
           <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]" role="status" aria-live="polite">
             <LoadingSpinner size={48} />
-            <p className="mt-4 text-muted-foreground">Generating your notes, please wait...</p>
+            <p className="mt-4 text-muted-foreground">Generating your notes, please wait... {generationProgress}%</p>
              <div className="relative w-full mt-4 rounded-full h-2 bg-muted">
-                <div className="absolute left-0 top-0 h-full rounded-full bg-primary transition-width duration-300" style={progressBarStyle}></div>
+                <div className="absolute left-0 top-0 h-full rounded-full bg-primary transition-[width] duration-300" style={progressBarStyle}></div>
               </div>
           </CardContent>
         </Card>
       )}
 
-      {generatedNotes && !isPending && (
+      {generatedNotes && !isGeneratingNotes && (
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl font-semibold">Generated Notes</CardTitle>
+            <CardDescription>Review your generated notes below. You can also export them.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none p-4 bg-muted/30 rounded-md overflow-x-auto">
+            <div ref={notesOutputRef} className="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none p-4 bg-muted/30 rounded-md overflow-x-auto">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw]}
@@ -301,6 +369,17 @@ export default function NotesPage() {
               </ReactMarkdown>
             </div>
           </CardContent>
+          <CardFooter className="flex-col items-start sm:flex-row sm:items-center sm:justify-end gap-2">
+            <Button onClick={handleExportMarkdown} variant="outline" aria-label="Export notes as Markdown file">
+              <Download className="mr-2 h-4 w-4" /> Export as Markdown
+            </Button>
+            <Button onClick={handleCopyToClipboard} variant="outline" aria-label="Copy notes to clipboard">
+              <Copy className="mr-2 h-4 w-4" /> Copy to Clipboard
+            </Button>
+            <Button onClick={handleExportPdf} variant="outline" aria-label="Export notes as PDF using print dialog">
+              <Printer className="mr-2 h-4 w-4" /> Export as PDF
+            </Button>
+          </CardFooter>
         </Card>
       )}
     </div>
