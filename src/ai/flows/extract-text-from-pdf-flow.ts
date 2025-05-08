@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow to extract text content from a PDF file.
@@ -30,9 +31,10 @@ export async function extractTextFromPdf(input: ExtractTextFromPdfInput): Promis
 
 const pdfExtractionPrompt = ai.definePrompt({
   name: 'extractTextFromPdfPrompt',
-  // Use a model known for strong multimodal capabilities, like Gemini 1.5 Flash.
+  // Use a model known for strong multimodal capabilities, like Gemini 1.5 Pro.
   // This model can typically handle PDF data URIs directly.
-  model: 'googleai/gemini-1.5-flash-latest',
+  // Changed from 'googleai/gemini-1.5-flash-latest' due to "Model not found" error.
+  model: 'googleai/gemini-1.5-pro-latest',
   input: {schema: ExtractTextFromPdfInputSchema},
   output: {schema: ExtractTextFromPdfOutputSchema},
   prompt: `Extract all textual content from the provided PDF document.
@@ -54,3 +56,4 @@ const extractTextFromPdfFlow = ai.defineFlow(
     return output;
   }
 );
+
