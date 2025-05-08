@@ -1,3 +1,6 @@
+
+import { findRelevantArticles, type FindRelevantArticlesInput } from '@/ai/flows/find-relevant-articles-flow';
+
 /**
  * Represents an article with a title and URL.
  */
@@ -13,22 +16,20 @@ export interface Article {
 }
 
 /**
- * Asynchronously searches for articles related to a given topic.
+ * Asynchronously searches for articles related to a given topic using an AI flow.
  *
  * @param topic The topic to search for articles about.
  * @returns A promise that resolves to an array of Article objects.
  */
 export async function searchArticles(topic: string): Promise<Article[]> {
-  // TODO: Implement this by calling an API.
-
-  return [
-    {
-      title: 'Example Article 1',
-      url: 'https://example.com/article1',
-    },
-    {
-      title: 'Example Article 2',
-      url: 'https://example.com/article2',
-    },
-  ];
+  try {
+    const input: FindRelevantArticlesInput = { topic };
+    const result = await findRelevantArticles(input);
+    return result.articles || []; // Ensure an array is always returned
+  } catch (error) {
+    console.error(`Error searching articles for topic "${topic}":`, error);
+    // Depending on desired error handling, you might re-throw or return empty/default
+    // For now, returning an empty array to prevent breaking calling flows.
+    return []; 
+  }
 }
