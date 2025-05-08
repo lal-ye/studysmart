@@ -15,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${GeistSans.variable} dark`}> {/* Apply GeistSans.variable and dark theme */}
+    <html lang="en" className={`${GeistSans.variable} dark`}>
       <body className="font-sans"> {/* font-sans will use the CSS variable defined by GeistSans.variable */}
         <AppLayout>
           {children}
