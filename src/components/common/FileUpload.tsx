@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type React from 'react';
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { FileUp, X } from 'lucide-react';
 import { extractTextFromPdfAction } from '@/lib/actions';
@@ -25,6 +25,21 @@ export default function FileUpload({
   const [fileName, setFileName] = useState<string | null>(null);
   const [isProcessing, startProcessingTransition] = useTransition();
   const [pdfCacheKey, setPdfCacheKey] = useState<string | null>(null);
+  const [cachedFiles, setCachedFiles] = useState<
+    { name: string; cacheKey: string }[]
+  >([]);
+
+  // Load cached files from local storage on component mount
+  useEffect(() => {
+    const storedFiles = Object.entries(localStorage)
+      .filter(([key]) => key.startsWith('pdf-cache-'))
+      .map(([key, value]) => {
+        const parts = key.split('-');
+        return { name: parts[2], cacheKey: key };
+      });
+
+    setCachedFiles(storedFiles);
+  }, []);
 
   useEffect(() => {
     if (pdfCacheKey) {
@@ -90,6 +105,10 @@ export default function FileUpload({
               const result = await extractTextFromPdfAction({ pdfDataUri });
               onFileRead(result.extractedText, file.name);
               localStorage.setItem(cacheKey, result.extractedText); // Cache the content
+              setCachedFiles((prevFiles) => [
+                ...prevFiles,
+                { name: file.name, cacheKey: cacheKey },
+              ]);
               setPdfCacheKey(cacheKey); // Activate the cache loading useEffect
               toast({
                 title: 'PDF Processed',
@@ -107,14 +126,6 @@ export default function FileUpload({
               });
               clearFile(event.target);
             }
-          };
-          reader.onerror = () => {
-            toast({
-              title: 'Error reading PDF file',
-              description: 'Could not read the PDF file for processing.',
-              variant: 'destructive',
-            });
-            clearFile(event.target);
           };
           reader.readAsDataURL(file);
         } else {
@@ -140,9 +151,23 @@ export default function FileUpload({
     setPdfCacheKey(null); // Clear cache key when file is cleared
   };
 
+  const handleCachedFileSelect = (cacheKey: string, name: string) => {
+    setFileName(name);
+    setPdfCacheKey(cacheKey);
+  };
+
+  const handleRemoveCachedFile = (cacheKeyToRemove: string) => {
+    localStorage.removeItem(cacheKeyToRemove);
+    setCachedFiles((prevFiles) =>
+      prevFiles.filter((file) => file.cacheKey !== cacheKeyToRemove)
+    );
+    clearFile();
+  };
+
   return (
     <div className="space-y-2">
       <Label htmlFor="courseMaterialFile">Upload Course Material ({acceptedFileTypes})</Label>
+
       <div className="flex items-center gap-2">
         <Input
           id="courseMaterialFile"
@@ -164,6 +189,7 @@ export default function FileUpload({
           </Button>
         )}
       </div>
+
       {fileName && !isProcessing && <p className="text-sm text-muted-foreground">Loaded: {fileName}</p>}
       {isProcessing && (
         <div className="flex items-center text-sm text-primary">
@@ -171,10 +197,39 @@ export default function FileUpload({
           Processing {fileName ? `'${fileName}'` : 'file'}, please wait... This may take a moment for PDFs.
         </div>
       )}
+
       <p className="text-xs text-muted-foreground">
         Supports .txt and .pdf files up to {maxFileSizeMB}MB. For other formats, please copy and paste
         the text content into the text area below. PDF processing uses AI and may take a few moments.
       </p>
+
+      {cachedFiles.length > 0 && (
+        <div>
+          <Label>Cached Documents</Label>
+          <ul className="mt-1 space-y-1">
+            {cachedFiles.map((file) => (
+              <li key={file.cacheKey} className="flex items-center justify-between p-2 border rounded-md bg-muted/20">
+                <button
+                  onClick={() => handleCachedFileSelect(file.cacheKey, file.name)}
+                  className="text-sm hover:underline text-left"
+                >
+                  {file.name}
+                </button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRemoveCachedFile(file.cacheKey)}
+                    aria-label="Remove cached file"
+                    disabled={isProcessing}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
+
