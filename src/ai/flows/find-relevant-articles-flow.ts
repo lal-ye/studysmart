@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to find relevant articles for a given topic.
@@ -60,14 +59,26 @@ const findRelevantArticlesFlow = ai.defineFlow(
     outputSchema: FindRelevantArticlesOutputSchema,
   },
   async (input: FindRelevantArticlesInput) => {
-    const {output} = await findRelevantArticlesPrompt(input);
+    const modelResponse = await findRelevantArticlesPrompt(input);
+    console.log('[StudySmarts Debug - findRelevantArticlesFlow] Raw model response for topic "'+ input.topic +'":', JSON.stringify(modelResponse, null, 2));
+    
+    const {output} = modelResponse;
+    console.log('[StudySmarts Debug - findRelevantArticlesFlow] Parsed output from model for topic "'+ input.topic +'":', JSON.stringify(output, null, 2));
+
     if (!output) {
+      console.error('[StudySmarts Debug - findRelevantArticlesFlow] No output from model after schema validation for topic "'+ input.topic +'".');
       throw new Error('Failed to find relevant articles: No output from model.');
     }
-    // Ensure articles is an empty array if not provided or null, to match schema
+    
     if (output.articles === undefined || output.articles === null) {
+      console.warn('[StudySmarts Debug - findRelevantArticlesFlow] Model output.articles is undefined or null for topic "'+ input.topic +'". Setting to empty array.');
       output.articles = [];
+    } else if (output.articles.length === 0) {
+      console.warn('[StudySmarts Debug - findRelevantArticlesFlow] Model returned an empty "articles" array for topic "'+ input.topic +'".');
+    } else {
+      console.log('[StudySmarts Debug - findRelevantArticlesFlow] Model returned '+ output.articles.length +' articles for topic "'+ input.topic +'".');
     }
     return output;
   }
 );
+
