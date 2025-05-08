@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { generateAndAnalyzeExamAction, getExtraReadingsAction } from '@/lib/actions';
-import type { GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult, GenerateAndAnalyzeExamActionInput as ActionInputType } from '@/lib/actions'; // Adjusted import for clarity
+import type { GenerateAndAnalyzeExamActionInput, GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult } from '@/lib/actions';
 import type { Article } from '@/services/search-articles';
 import FileUpload from '@/components/common/FileUpload';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -19,14 +19,13 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 
 type ExamState = 'idle' | 'generating_exam' | 'taking_exam' | 'grading_exam' | 'showing_results';
-type ToastArgs = Parameters<ReturnType<typeof useToast>['toast']>[0];
-
 
 export default function ExamsPage() {
   const [courseMaterial, setCourseMaterial] = useState('');
   const [examState, setExamState] = useState<ExamState>('idle');
   
   const [currentExamQuestions, setCurrentExamQuestions] = useState<ExamQuestion[]>([]);
+  const [persistedExamQuestions, setPersistedExamQuestions] = useState<ExamQuestion[]>([]); // To store the exact questions the user took
   const [examResultsData, setExamResultsData] = useState<GenerateExamAndAnalyzeOutput | null>(null);
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -35,45 +34,41 @@ export default function ExamsPage() {
   const [isProcessingAction, startProcessingActionTransition] = useTransition();
   const [isFetchingReadings, startFetchingReadingsTransition] = useTransition();
   const { toast } = useToast();
-  const [activeToastId, setActiveToastId] = useState<string | null>(null);
-
-
-  const showToast = (args: ToastArgs) => {
-    // Clear previous toast if any to prevent overlap
-    if (activeToastId) {
-      // Potentially dismiss previous toast if your toast system supports it by ID
-      // For now, we'll just rely on new toast replacing or queuing
-    }
-    const { id } = toast(args);
-    setActiveToastId(id);
-  };
 
 
   const handleGenerateExam = () => {
     if (!courseMaterial.trim()) {
-      showToast({ title: 'Input Required', description: 'Please provide course material to generate an exam.', variant: 'destructive' });
+      toast({ title: 'Input Required', description: 'Please provide course material to generate an exam.', variant: 'destructive' });
       return;
     }
     setExamState('generating_exam');
     setCurrentExamQuestions([]);
+    setPersistedExamQuestions([]); // Reset persisted questions
     setExamResultsData(null);
     setUserAnswers({});
     setCurrentQuestionIndex(0);
 
     startProcessingActionTransition(async () => {
       try {
-        const input: ActionInputType = { courseMaterial, numberOfQuestions: 30 }; // Backend flow defaults to 30, no userAnswers initially
+        // For initial generation, only courseMaterial and numberOfQuestions are needed.
+        // No userAnswers and no pre-existing exam.
+        const input: GenerateAndAnalyzeExamActionInput = { 
+            courseMaterial, 
+            numberOfQuestions: 30 
+            // userAnswers and exam are omitted for generation phase
+        };
         const result = await generateAndAnalyzeExamAction(input);
         if (result.exam && result.exam.length > 0) {
           setCurrentExamQuestions(result.exam);
+          setPersistedExamQuestions(result.exam); // Persist the generated questions
           setExamState('taking_exam');
-          showToast({ title: 'Exam Ready!', description: 'You can now start the exam.' });
+          toast({ title: 'Exam Ready!', description: 'You can now start the exam.' });
         } else {
-          showToast({ title: 'Generation Issue', description: 'No questions were generated. Try different material.', variant: 'destructive' });
+          toast({ title: 'Generation Issue', description: 'No questions were generated. Try different material.', variant: 'destructive' });
           setExamState('idle');
         }
       } catch (error) {
-        showToast({ title: 'Error Generating Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
+        toast({ title: 'Error Generating Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
         setExamState('idle');
       }
     });
@@ -84,22 +79,28 @@ export default function ExamsPage() {
   };
 
   const handleSubmitExam = () => {
+    if (persistedExamQuestions.length === 0) {
+        toast({ title: 'Error', description: 'No exam questions found to submit.', variant: 'destructive'});
+        setExamState('idle'); // Or back to taking_exam if appropriate
+        return;
+    }
     setExamState('grading_exam');
     startProcessingActionTransition(async () => {
       try {
-        const answersArray = currentExamQuestions.map((_, index) => userAnswers[index] || ""); // Ensure all answers are strings
-        const input: ActionInputType = { 
-          courseMaterial, 
-          numberOfQuestions: 30, 
-          userAnswers: answersArray 
+        const answersArray = persistedExamQuestions.map((_, index) => userAnswers[index] || ""); 
+        const input: GenerateAndAnalyzeExamActionInput = { 
+          courseMaterial, // Still pass course material, might be needed by LLM for context/analysis
+          numberOfQuestions: persistedExamQuestions.length, // Number of questions is from the persisted exam
+          userAnswers: answersArray,
+          exam: persistedExamQuestions, // Pass the exact questions the user took
         };
         const result = await generateAndAnalyzeExamAction(input);
         setExamResultsData(result);
         setExamState('showing_results');
-        showToast({ title: 'Exam Graded!', description: 'Your results are ready below.' });
+        toast({ title: 'Exam Graded!', description: 'Your results are ready below.' });
       } catch (error) {
-        showToast({ title: 'Error Grading Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
-        setExamState('taking_exam'); // Revert to taking exam if grading fails
+        toast({ title: 'Error Grading Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
+        setExamState('taking_exam'); 
       }
     });
   };
@@ -111,7 +112,7 @@ export default function ExamsPage() {
         
         setExamResultsData(prevData => {
           if (!prevData) { 
-            showToast({ title: "Error", description: "Exam data not available to add readings.", variant: "destructive" });
+            toast({ title: "Error", description: "Exam data not available to add readings.", variant: "destructive" });
             return null;
           }
 
@@ -119,12 +120,12 @@ export default function ExamsPage() {
           const newArticlesToAdd = readingsResult.articles.filter(newArticle => !existingUrls.has(newArticle.url) && newArticle.title !== "No Relevant Articles Found");
 
           if (readingsResult.articles.length === 0 || (readingsResult.articles.length === 1 && readingsResult.articles[0].title === "No Relevant Articles Found" && newArticlesToAdd.length === 0) ) {
-             showToast({ title: `No New Readings Found`, description: `Could not find any new articles for "${topic}".` });
+             toast({ title: `No New Readings Found`, description: `Could not find any new articles for "${topic}".` });
              return prevData; 
           }
           
           if (newArticlesToAdd.length === 0 && readingsResult.articles.length > 0 && readingsResult.articles[0].title !== "No Relevant Articles Found") { 
-            showToast({ title: `Readings for ${topic} already listed.`, description: "No new unique articles found." });
+            toast({ title: `Readings for ${topic} already listed.`, description: "No new unique articles found." });
             return prevData; 
           }
 
@@ -138,18 +139,28 @@ export default function ExamsPage() {
           const updatedReadings = [...(prevData.extraReadings || []).filter(ar => ar.title !== "No Relevant Articles Found"), ...processedNewArticles];
           
           if (processedNewArticles.length > 0) {
-            showToast({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
+            toast({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
           }
           return { ...prevData, extraReadings: updatedReadings };
         });
       } catch (error) {
-        showToast({ title: `Error Fetching Readings for ${topic}`, description: (error as Error).message, variant: 'destructive' });
+        toast({ title: `Error Fetching Readings for ${topic}`, description: (error as Error).message, variant: 'destructive' });
       }
     });
   };
   
   const handleFileRead = (content: string, fileName?: string) => {
     setCourseMaterial(content);
+  };
+
+  const handleStartNewExam = () => {
+    setExamState('idle'); 
+    setCourseMaterial(''); 
+    setExamResultsData(null);
+    setCurrentExamQuestions([]);
+    setPersistedExamQuestions([]);
+    setUserAnswers({});
+    setCurrentQuestionIndex(0);
   };
 
   const currentQuestion = currentExamQuestions[currentQuestionIndex];
@@ -258,7 +269,7 @@ export default function ExamsPage() {
           <CardContent>
             <Accordion type="single" collapsible className="w-full">
               {examResultsData.exam.map((q, index) => {
-                const result = examResultsData.results.find(r => r.question === q.question && r.topic === q.topic) || {} as ExamResult; // Find corresponding result
+                const result = examResultsData.results[index] || {} as ExamResult; 
                 return (
                   <AccordionItem value={`item-${index}`} key={index}>
                     <AccordionTrigger className="text-left hover:no-underline">
@@ -351,7 +362,7 @@ export default function ExamsPage() {
           </Card>
         )}
         <CardFooter>
-             <Button onClick={() => { setExamState('idle'); setCourseMaterial(''); setExamResultsData(null); }} variant="outline">
+             <Button onClick={handleStartNewExam} variant="outline">
                 Start New Exam
             </Button>
         </CardFooter>
@@ -401,4 +412,3 @@ export default function ExamsPage() {
     </div>
   );
 }
-
