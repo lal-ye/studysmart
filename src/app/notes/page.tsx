@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import React, { useState, useTransition, useEffect } from 'react'; // Added React import
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,13 +29,15 @@ export default function NotesPage() {
       // @ts-ignore
       if (window.mermaid) {
         // @ts-ignore
-        window.mermaid.initialize({ startOnLoad: false, theme: 'neutral' }); 
+        window.mermaid.initialize({ startOnLoad: false, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'neutral' }); 
       }
       setMermaidScriptLoaded(true);
     };
     document.head.appendChild(script);
     return () => {
-      document.head.removeChild(script);
+      if (script.parentNode) { // Check if script is still in head before removing
+        document.head.removeChild(script);
+      }
     };
   }, []);
 
@@ -165,35 +168,46 @@ export default function NotesPage() {
                     // @ts-ignore
                     if (React.isValidElement(codeChild) && codeChild.props.className?.includes('language-mermaid')) {
                        // @ts-ignore
-                       return <pre {...props} className="language-mermaid">{props.children}</pre>;
+                       return <pre {...props} className="language-mermaid bg-background">{props.children}</pre>;
                     }
                     // @ts-ignore
-                    return <pre {...props} />;
+                    return <pre className="bg-muted/50 p-4 rounded-md overflow-auto" {...props} />;
                   },
                   // eslint-disable-next-line @typescript-eslint/no-unused-vars
                   code({ node, inline, className, children, ...props }) {
                     const match = /language-(\w+)/.exec(className || '');
                     if (match && match[1] === 'mermaid' && !inline) {
                       return (
+                        // Mermaid diagrams are rendered by mermaid.js library, keep this simple
                         <code className="language-mermaid" {...props}>
                           {children}
                         </code>
                       );
                     }
+                    // For other code blocks, apply some styling
                     return (
-                      <code className={className} {...props}>
+                      <code className={cn(className, !inline && "block whitespace-pre-wrap p-2", inline && "px-1 py-0.5 bg-muted rounded-sm")} {...props}>
                         {children}
                       </code>
                     );
                   },
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-md my-4 shadow-md" alt={props.alt || ''} {...props} />,
-                  table: ({node, ...props}) => <table className="w-full border-collapse border border-border" {...props} />,
+                  table: ({node, ...props}) => <table className="w-full my-4 border-collapse border border-border" {...props} />,
+                  thead: ({node, ...props}) => <thead className="bg-muted/50" {...props} />,
                   th: ({node, ...props}) => <th className="border border-border px-4 py-2 text-left font-semibold" {...props} />,
                   td: ({node, ...props}) => <td className="border border-border px-4 py-2" {...props} />,
-                  details: ({node, ...props}) => <details className="mb-4 p-2 border rounded-md bg-background shadow" {...props} />,
-                  summary: ({node, ...props}) => <summary className="font-semibold cursor-pointer hover:text-primary" {...props} />,
-                  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow" {...props} />,
+                  details: ({node, ...props}) => <details className="my-4 p-3 border rounded-md bg-background shadow-sm open:ring-1 open:ring-primary" {...props} />,
+                  summary: ({node, ...props}) => <summary className="font-semibold cursor-pointer hover:text-primary list-inside" {...props} />,
+                  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm" {...props} />,
+                  h1: ({node, ...props}) => <h1 className="text-3xl font-bold my-4 text-primary" {...props} />,
+                  h2: ({node, ...props}) => <h2 className="text-2xl font-semibold my-3 border-b border-border pb-1" {...props} />,
+                  h3: ({node, ...props}) => <h3 className="text-xl font-semibold my-2" {...props} />,
+                  ul: ({node, ...props}) => <ul className="list-disc pl-6 my-2 space-y-1" {...props} />,
+                  ol: ({node, ...props}) => <ol className="list-decimal pl-6 my-2 space-y-1" {...props} />,
+                  li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                  p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                  a: ({node, ...props}) => <a className="text-primary hover:underline" {...props} />,
                 }}
               >
                 {generatedNotes}
