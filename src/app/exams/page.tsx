@@ -1,52 +1,90 @@
+
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { generateAndAnalyzeExamAction, getExtraReadingsAction } from '@/lib/actions';
-import type { GenerateExamAndAnalyzeOutput, GenerateExamAndAnalyzeInput, ExamQuestion, ExamResult } from '@/ai/flows/generate-exam-and-analyze';
+import type { GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult, GenerateAndAnalyzeExamActionInput as ActionInputType } from '@/lib/actions'; // Adjusted import for clarity
 import type { Article } from '@/services/search-articles';
 import FileUpload from '@/components/common/FileUpload';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, BookOpen, FileText, ExternalLink, ClipboardCheck } from 'lucide-react';
+import { CheckCircle, XCircle, BookOpen, FileText, ExternalLink, ClipboardCheck, ArrowLeft, ArrowRight, Send } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+
+type ExamState = 'idle' | 'generating_exam' | 'taking_exam' | 'grading_exam' | 'showing_results';
 
 export default function ExamsPage() {
   const [courseMaterial, setCourseMaterial] = useState('');
-  const [examData, setExamData] = useState<GenerateExamAndAnalyzeOutput | null>(null);
-  const [isGenerating, startGeneratingTransition] = useTransition();
+  const [examState, setExamState] = useState<ExamState>('idle');
+  
+  const [currentExamQuestions, setCurrentExamQuestions] = useState<ExamQuestion[]>([]);
+  const [examResultsData, setExamResultsData] = useState<GenerateExamAndAnalyzeOutput | null>(null);
+  
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
+
+  const [isProcessingAction, startProcessingActionTransition] = useTransition();
   const [isFetchingReadings, startFetchingReadingsTransition] = useTransition();
   const { toast } = useToast();
 
   const handleGenerateExam = () => {
     if (!courseMaterial.trim()) {
-      toast({
-        title: 'Input Required',
-        description: 'Please provide course material to generate an exam.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Input Required', description: 'Please provide course material to generate an exam.', variant: 'destructive' });
       return;
     }
+    setExamState('generating_exam');
+    setCurrentExamQuestions([]);
+    setExamResultsData(null);
+    setUserAnswers({});
+    setCurrentQuestionIndex(0);
 
-    startGeneratingTransition(async () => {
-      setExamData(null); // Clear previous data
+    startProcessingActionTransition(async () => {
       try {
-        const input: GenerateExamAndAnalyzeInput = { courseMaterial, numberOfQuestions: 70 }; // numberOfQuestions is fixed
+        const input: ActionInputType = { courseMaterial, numberOfQuestions: 30 }; // Backend flow defaults to 30, no userAnswers initially
         const result = await generateAndAnalyzeExamAction(input);
-        setExamData(result);
-        toast({
-          title: 'Exam Generated & Analyzed!',
-          description: 'Your exam and analysis are ready below.',
-        });
+        if (result.exam && result.exam.length > 0) {
+          setCurrentExamQuestions(result.exam);
+          setExamState('taking_exam');
+          toast({ title: 'Exam Ready!', description: 'You can now start the exam.' });
+        } else {
+          toast({ title: 'Generation Issue', description: 'No questions were generated. Try different material.', variant: 'destructive' });
+          setExamState('idle');
+        }
       } catch (error) {
-        toast({
-          title: 'Error Generating Exam',
-          description: (error as Error).message || 'An unexpected error occurred.',
-          variant: 'destructive',
-        });
+        toast({ title: 'Error Generating Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
+        setExamState('idle');
+      }
+    });
+  };
+
+  const handleAnswerChange = (questionIndex: number, answer: string) => {
+    setUserAnswers(prev => ({ ...prev, [questionIndex]: answer }));
+  };
+
+  const handleSubmitExam = () => {
+    setExamState('grading_exam');
+    startProcessingActionTransition(async () => {
+      try {
+        const answersArray = currentExamQuestions.map((_, index) => userAnswers[index] || ""); // Ensure all answers are strings
+        const input: ActionInputType = { 
+          courseMaterial, 
+          numberOfQuestions: 30, 
+          userAnswers: answersArray 
+        };
+        const result = await generateAndAnalyzeExamAction(input);
+        setExamResultsData(result);
+        setExamState('showing_results');
+        toast({ title: 'Exam Graded!', description: 'Your results are ready below.' });
+      } catch (error) {
+        toast({ title: 'Error Grading Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
+        setExamState('taking_exam'); // Revert to taking exam if grading fails
       }
     });
   };
@@ -55,8 +93,7 @@ export default function ExamsPage() {
     startFetchingReadingsTransition(async () => {
       try {
         const readingsResult = await getExtraReadingsAction({ topic });
-        // Merge new readings with existing ones, avoiding duplicates for the specific topic
-        setExamData(prevData => {
+        setExamResultsData(prevData => {
           if (!prevData) return null;
           const updatedReadings = [...(prevData.extraReadings || [])];
           readingsResult.articles.forEach(newArticle => {
@@ -66,16 +103,9 @@ export default function ExamsPage() {
           });
           return { ...prevData, extraReadings: updatedReadings };
         });
-        toast({
-          title: 'Extra Readings Fetched!',
-          description: `Found readings for ${topic}.`,
-        });
+        toast({ title: 'Extra Readings Fetched!', description: `Found readings for ${topic}.` });
       } catch (error) {
-        toast({
-          title: `Error Fetching Readings for ${topic}`,
-          description: (error as Error).message || 'An unexpected error occurred.',
-          variant: 'destructive',
-        });
+        toast({ title: `Error Fetching Readings for ${topic}`, description: (error as Error).message, variant: 'destructive' });
       }
     });
   };
@@ -84,6 +114,202 @@ export default function ExamsPage() {
     setCourseMaterial(content);
   };
 
+  const currentQuestion = currentExamQuestions[currentQuestionIndex];
+  const progress = currentExamQuestions.length > 0 ? (Object.keys(userAnswers).length / currentExamQuestions.length) * 100 : 0;
+
+  if (examState === 'generating_exam' || examState === 'grading_exam') {
+    return (
+      <Card>
+        <CardContent className="p-6 flex flex-col items-center justify-center min-h-[300px]">
+          <LoadingSpinner size={48} />
+          <p className="mt-4 text-muted-foreground">
+            {examState === 'generating_exam' ? 'Generating your 30-question exam...' : 'Grading your exam, please wait...'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  if (examState === 'taking_exam' && currentQuestion) {
+    return (
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-xl">Exam in Progress: Question {currentQuestionIndex + 1} of {currentExamQuestions.length}</CardTitle>
+          <CardDescription>Topic: {currentQuestion.topic}</CardDescription>
+          <Progress value={progress} className="w-full mt-2" />
+           <p className="text-sm text-muted-foreground mt-1">{Object.keys(userAnswers).length} / {currentExamQuestions.length} answered</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="font-semibold text-lg">{currentQuestion.question}</p>
+          {currentQuestion.type === 'multiple_choice' && currentQuestion.options && (
+            <RadioGroup 
+              value={userAnswers[currentQuestionIndex] || ""} 
+              onValueChange={(value) => handleAnswerChange(currentQuestionIndex, value)}
+              className="space-y-2"
+            >
+              {currentQuestion.options.map((option, optIndex) => (
+                <div key={optIndex} className="flex items-center space-x-2">
+                  <RadioGroupItem value={option} id={`q${currentQuestionIndex}-opt${optIndex}`} />
+                  <Label htmlFor={`q${currentQuestionIndex}-opt${optIndex}`}>{option}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          )}
+          {currentQuestion.type === 'true_false' && (
+             <RadioGroup 
+              value={userAnswers[currentQuestionIndex] || ""} 
+              onValueChange={(value) => handleAnswerChange(currentQuestionIndex, value)}
+              className="space-y-2"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="true" id={`q${currentQuestionIndex}-true`} />
+                <Label htmlFor={`q${currentQuestionIndex}-true`}>True</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="false" id={`q${currentQuestionIndex}-false`} />
+                <Label htmlFor={`q${currentQuestionIndex}-false`}>False</Label>
+              </div>
+            </RadioGroup>
+          )}
+          {currentQuestion.type === 'short_answer' && (
+            <Textarea
+              placeholder="Type your answer here..."
+              value={userAnswers[currentQuestionIndex] || ""}
+              onChange={(e) => handleAnswerChange(currentQuestionIndex, e.target.value)}
+              rows={4}
+            />
+          )}
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button 
+            onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))} 
+            disabled={currentQuestionIndex === 0}
+            variant="outline"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Previous
+          </Button>
+          {currentQuestionIndex < currentExamQuestions.length - 1 ? (
+            <Button onClick={() => setCurrentQuestionIndex(prev => Math.min(currentExamQuestions.length - 1, prev + 1))}>
+              Next <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          ) : (
+            <Button onClick={handleSubmitExam} className="bg-green-600 hover:bg-green-700">
+              <Send className="mr-2 h-4 w-4" /> Submit Exam
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  if (examState === 'showing_results' && examResultsData) {
+    return (
+      <div className="space-y-6">
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-2xl font-bold">Exam Results</CardTitle>
+                <CardDescription>
+                    Review your performance. Score: {examResultsData.results.filter(r => r.isCorrect).length} / {examResultsData.exam.length}
+                </CardDescription>
+            </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Detailed Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Accordion type="single" collapsible className="w-full">
+              {examResultsData.exam.map((q, index) => {
+                const result = examResultsData.results.find(r => r.question === q.question && r.topic === q.topic) || {} as ExamResult; // Find corresponding result
+                return (
+                  <AccordionItem value={`item-${index}`} key={index}>
+                    <AccordionTrigger className="text-left hover:no-underline">
+                      <div className="flex items-center justify-between w-full">
+                        <span className="flex-1">{index + 1}. {q.question}</span>
+                        <div className="flex items-center ml-4">
+                            <Badge variant="secondary" className="mr-2">{q.topic}</Badge>
+                            {result.isCorrect ? 
+                              <Badge variant="default" className="bg-green-500 hover:bg-green-600">Correct</Badge> : 
+                              <Badge variant="destructive">Incorrect</Badge>
+                            }
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="text-sm space-y-1">
+                      <p><strong>Type:</strong> {q.type.replace('_', ' ')}</p>
+                      <p><strong>Your Answer:</strong> {result.userAnswer || "Not answered"}</p>
+                      {!result.isCorrect && <p><strong>Correct Answer:</strong> {q.correctAnswer}</p>}
+                      {q.type === 'multiple_choice' && q.options && (
+                        <ul className="list-disc pl-5 mt-1">
+                           {q.options.map((opt, i) => (
+                            <li key={i} className={opt === q.correctAnswer ? 'font-semibold text-primary' : ''}>
+                                {opt}
+                                {opt === result.userAnswer && opt !== q.correctAnswer && <XCircle className="inline ml-1 h-4 w-4 text-red-500" />}
+                                {opt === q.correctAnswer && <CheckCircle className="inline ml-1 h-4 w-4 text-green-500" />}
+                            </li>
+                            ))}
+                        </ul>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Study Plan: Topics to Review</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {examResultsData.topicsToReview.length > 0 ? (
+              <ul className="list-disc pl-5 space-y-2">
+                {examResultsData.topicsToReview.map((topic, index) => (
+                  <li key={index} className="flex items-center justify-between">
+                    <span>{topic}</span>
+                    <Button size="sm" variant="outline" onClick={() => handleFetchExtraReadings(topic)} disabled={isFetchingReadings}>
+                      {isFetchingReadings ? <LoadingSpinner size={16} /> : <BookOpen className="mr-2 h-4 w-4" />}
+                      Find Readings
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-green-600 font-semibold">Great job! No specific topics flagged for review based on this exam.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {examResultsData.extraReadings && examResultsData.extraReadings.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Extra Readings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {examResultsData.extraReadings.map((article: Article, index: number) => (
+                  <li key={index} className="text-sm border p-3 rounded-md hover:bg-muted/50">
+                    <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center">
+                      {article.title}
+                      <ExternalLink className="ml-2 h-3 w-3" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+        <CardFooter>
+             <Button onClick={() => { setExamState('idle'); setCourseMaterial(''); }} variant="outline">
+                Start New Exam
+            </Button>
+        </CardFooter>
+      </div>
+    );
+  }
+
+  // Initial page load / Idle state
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
@@ -93,7 +319,8 @@ export default function ExamsPage() {
             <div>
               <CardTitle className="text-2xl font-bold">Exam Generation & Analysis</CardTitle>
               <CardDescription>
-                Generate a 70-question exam from your course material (e.g., .txt, .pdf file or paste text), get it graded, and receive a personalized study plan.
+                Provide your course material (e.g., .txt, .pdf file or paste text) to generate a 30-question exam.
+                The exam will include 15 multiple-choice, 10 true/false, and 5 short answer questions.
               </CardDescription>
             </div>
           </div>
@@ -115,124 +342,12 @@ export default function ExamsPage() {
           </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={handleGenerateExam} disabled={isGenerating || !courseMaterial.trim()}>
-            {isGenerating ? <LoadingSpinner className="mr-2" /> : <FileText className="mr-2 h-4 w-4" />}
-            Generate & Analyze Exam
+          <Button onClick={handleGenerateExam} disabled={isProcessingAction || !courseMaterial.trim()}>
+            {isProcessingAction ? <LoadingSpinner className="mr-2" /> : <FileText className="mr-2 h-4 w-4" />}
+            Generate 30-Question Exam
           </Button>
         </CardFooter>
       </Card>
-
-      {isGenerating && (
-        <Card>
-          <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]">
-            <LoadingSpinner size={48} />
-            <p className="mt-4 text-muted-foreground">Generating exam and analyzing results, please wait...</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {examData && !isGenerating && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Exam Questions ({examData.exam.length})</CardTitle>
-              <CardDescription>Review the generated exam questions. User answers are mocked for this demo.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Accordion type="single" collapsible className="w-full">
-                {examData.exam.map((q, index) => (
-                  <AccordionItem value={`item-${index}`} key={index}>
-                    <AccordionTrigger className="text-left hover:no-underline">
-                        {index + 1}. {q.question} <Badge variant="secondary" className="ml-2">{q.topic}</Badge>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <ul className="list-disc pl-5 space-y-1 text-sm">
-                        {q.options.map((opt, i) => (
-                          <li key={i} className={opt === q.correctAnswer ? 'font-semibold text-primary' : ''}>
-                            {opt} {opt === q.correctAnswer && <CheckCircle className="inline ml-1 h-4 w-4 text-green-500" />}
-                          </li>
-                        ))}
-                      </ul>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Exam Results</CardTitle>
-              <CardDescription>Detailed breakdown of your answers (mocked for demo).</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {examData.results.map((r, index) => (
-                  <Card key={index} className={r.isCorrect ? 'border-green-500' : 'border-red-500'}>
-                    <CardHeader className="p-3">
-                      <CardTitle className="text-sm flex items-center justify-between">
-                        <span>{index + 1}. {r.question}</span>
-                        {r.isCorrect ? 
-                          <Badge variant="default" className="bg-green-500 hover:bg-green-600">Correct</Badge> : 
-                          <Badge variant="destructive">Incorrect</Badge>
-                        }
-                      </CardTitle>
-                      <CardDescription className="text-xs">Topic: {r.topic}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-3 text-xs">
-                      <p>Your Answer: {r.userAnswer}</p>
-                      {!r.isCorrect && <p>Correct Answer: {r.correctAnswer}</p>}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Study Plan: Topics to Review</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {examData.topicsToReview.length > 0 ? (
-                <ul className="list-disc pl-5 space-y-2">
-                  {examData.topicsToReview.map((topic, index) => (
-                    <li key={index} className="flex items-center justify-between">
-                      <span>{topic}</span>
-                      <Button size="sm" variant="outline" onClick={() => handleFetchExtraReadings(topic)} disabled={isFetchingReadings}>
-                        {isFetchingReadings ? <LoadingSpinner size={16} /> : <BookOpen className="mr-2 h-4 w-4" />}
-                        Find Readings
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-green-600 font-semibold">Great job! No specific topics flagged for review based on this exam.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {examData.extraReadings && examData.extraReadings.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Extra Readings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {examData.extraReadings.map((article: Article, index: number) => (
-                    <li key={index} className="text-sm border p-3 rounded-md hover:bg-muted/50">
-                      <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center">
-                        {article.title}
-                        <ExternalLink className="ml-2 h-3 w-3" />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
     </div>
   );
 }
