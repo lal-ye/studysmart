@@ -5,13 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { Button } from '../ui/button';
 import { FileUp, X } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist';
+import { extractTextFromPdfAction } from '@/lib/actions';
+import LoadingSpinner from './LoadingSpinner';
 
-// pdfjsLib.GlobalWorkerOptions.workerSrc needs to be set for pdf.js to work.
-// We use a CDN version here. Alternatively, you could copy pdf.worker.min.js to your public folder.
 
 interface FileUploadProps {
   onFileRead: (content: string) => void;
@@ -22,24 +21,12 @@ interface FileUploadProps {
 export default function FileUpload({ 
   onFileRead, 
   acceptedFileTypes = ".txt,.pdf", 
-  maxFileSizeMB = 10 // Increased max size for PDFs
+  maxFileSizeMB = 10 
 }: FileUploadProps) {
   const { toast } = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, startProcessingTransition] = useTransition();
 
-  useEffect(() => {
-    // Set the workerSrc for pdfjsLib
-    // This is necessary for the PDF processing to work correctly in a bundled environment like Next.js
-    // It points to a CDN-hosted version of the worker script.
-    // The version is hardcoded to match the installed package version as pdfjsLib.version was problematic.
-    if (typeof window !== 'undefined') {
-        // Installed pdfjs-dist version is ^4.4.170.
-        // The error message indicated an attempt to fetch version 4.10.38, which is incorrect.
-        // Hardcoding to a known good version from the installed package range.
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.170/pdf.worker.min.js`;
-    }
-  }, []);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -54,87 +41,74 @@ export default function FileUpload({
         return;
       }
 
-      setIsProcessing(true);
+      setFileName(file.name); // Set filename early for user feedback
 
-      if (file.type === 'text/plain') {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const text = e.target?.result as string;
-          onFileRead(text);
-          setFileName(file.name);
-          toast({
-            title: 'File Loaded',
-            description: `${file.name} content has been loaded.`,
-          });
-          setIsProcessing(false);
-        };
-        reader.onerror = () => {
-          toast({
-            title: 'Error reading file',
-            description: 'Could not read the file content.',
-            variant: 'destructive',
-          });
-          clearFile(event.target);
-          setIsProcessing(false);
-        };
-        reader.readAsText(file);
-      } else if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onload = async (e_reader) => {
-          const typedArray = new Uint8Array(e_reader.target?.result as ArrayBuffer);
-          try {
-            const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
-            let fullText = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-              const page = await pdf.getPage(i);
-              const textContent = await page.getTextContent();
-              // Ensure item.str is defined before joining
-              fullText += textContent.items.map((item: any) => item.str || '').join(' ') + '\n';
-            }
-            onFileRead(fullText);
-            setFileName(file.name);
+      startProcessingTransition(async () => {
+        if (file.type === 'text/plain') {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const text = e.target?.result as string;
+            onFileRead(text);
             toast({
-              title: 'PDF Loaded',
-              description: `${file.name} content has been extracted and loaded.`,
+              title: 'Text File Loaded',
+              description: `${file.name} content has been loaded.`,
             });
-          } catch (pdfError) {
-            console.error('Error processing PDF:', pdfError);
+          };
+          reader.onerror = () => {
             toast({
-              title: 'Error processing PDF',
-              description: 'Could not extract text from the PDF. It might be image-based, protected, or use a complex format.',
+              title: 'Error reading text file',
+              description: 'Could not read the file content.',
               variant: 'destructive',
             });
             clearFile(event.target);
-          } finally {
-            setIsProcessing(false);
-          }
-        };
-        reader.onerror = () => {
+          };
+          reader.readAsText(file);
+        } else if (file.type === 'application/pdf') {
+          const reader = new FileReader();
+          reader.onload = async (e_reader) => {
+            const pdfDataUri = e_reader.target?.result as string;
+            try {
+              const result = await extractTextFromPdfAction({ pdfDataUri });
+              onFileRead(result.extractedText);
+              toast({
+                title: 'PDF Processed',
+                description: `Text extracted from ${file.name} and loaded.`,
+              });
+            } catch (pdfError) {
+              console.error('Error processing PDF with GenAI:', pdfError);
+              toast({
+                title: 'Error Processing PDF',
+                description: (pdfError instanceof Error ? pdfError.message : 'Could not extract text from the PDF using AI.'),
+                variant: 'destructive',
+              });
+              clearFile(event.target); // Clear file details on error
+            }
+          };
+          reader.onerror = () => {
+            toast({
+              title: 'Error reading PDF file',
+              description: 'Could not read the PDF file for processing.',
+              variant: 'destructive',
+            });
+            clearFile(event.target);
+          };
+          reader.readAsDataURL(file); // Read as Data URL for GenAI
+        } else {
           toast({
-            title: 'Error reading file',
-            description: 'Could not read the PDF file.',
+            title: 'Unsupported File Type',
+            description: `Files of type "${file.type}" are not supported. Please upload a .txt or .pdf file, or paste content directly.`,
             variant: 'destructive',
           });
           clearFile(event.target);
-          setIsProcessing(false);
-        };
-        reader.readAsArrayBuffer(file);
-      } else {
-        toast({
-          title: 'Unsupported File Type',
-          description: `Files of type "${file.type}" are not supported. Please upload a .txt or .pdf file, or paste content directly.`,
-          variant: 'destructive',
-        });
-        clearFile(event.target);
-        setIsProcessing(false);
-      }
+        }
+      });
     }
   };
 
   const clearFile = (inputElement: HTMLInputElement | null = null) => {
     const fileInput = inputElement || document.getElementById('courseMaterialFile') as HTMLInputElement | null;
     if (fileInput) {
-      fileInput.value = "";
+      fileInput.value = ""; // Reset file input
     }
     setFileName(null);
     onFileRead(""); // Clear the content in the parent component
@@ -158,10 +132,15 @@ export default function FileUpload({
           </Button>
         )}
       </div>
-      {fileName && <p className="text-sm text-muted-foreground">Loaded: {fileName}</p>}
-      {isProcessing && <p className="text-sm text-primary">Processing file, please wait...</p>}
+      {fileName && !isProcessing && <p className="text-sm text-muted-foreground">Loaded: {fileName}</p>}
+      {isProcessing && (
+        <div className="flex items-center text-sm text-primary">
+          <LoadingSpinner size={16} className="mr-2" />
+          Processing {fileName ? `'${fileName}'` : 'file'}, please wait... This may take a moment for PDFs.
+        </div>
+      )}
        <p className="text-xs text-muted-foreground">
-        Supports .txt and .pdf files up to {maxFileSizeMB}MB. For other formats, please copy and paste the text content into the text area below.
+        Supports .txt and .pdf files up to {maxFileSizeMB}MB. For other formats, please copy and paste the text content into the text area below. PDF processing uses AI and may take a few moments.
       </p>
     </div>
   );
