@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Input } from '@/components/ui/input';
@@ -9,8 +10,8 @@ import { Button } from '../ui/button';
 import { FileUp, X } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// This import is crucial for Webpack to correctly bundle and make the worker available.
-import 'pdfjs-dist/build/pdf.worker.entry';
+// pdfjsLib.GlobalWorkerOptions.workerSrc needs to be set for pdf.js to work.
+// We use a CDN version here. Alternatively, you could copy pdf.worker.min.js to your public folder.
 
 interface FileUploadProps {
   onFileRead: (content: string) => void;
@@ -26,6 +27,16 @@ export default function FileUpload({
   const { toast } = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    // Set the workerSrc for pdfjsLib
+    // This is necessary for the PDF processing to work correctly in a bundled environment like Next.js
+    // It points to a CDN-hosted version of the worker script.
+    // The version is dynamically taken from the imported pdfjsLib to ensure compatibility.
+    if (typeof window !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    }
+  }, []);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
