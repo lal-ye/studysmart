@@ -19,11 +19,11 @@ import {
     Trash2, 
     Edit, 
     Save, 
-    Eye, // PlusCircle removed as not directly used here
+    Eye, 
     Info as NoteIcon,
     AlertTriangle as WarningIcon
 } from 'lucide-react';
-import remarkGfm from 'remarkGfm';
+import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { cn } from '@/lib/utils';
 import { Label } from "@/components/ui/label";
