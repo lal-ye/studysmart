@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import { BarChart as BarChartIcon, TrendingUp, TrendingDown, AlertTriangle, Activity } from 'lucide-react'; // Removed PieChartIcon and LineChartIcon as they are not directly used as page icons
 import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, LineChart as RechartsLineChart, Line as RechartsLine, Bar as RechartsBar } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import type { AnalyticsSummary, DatedScore, TopicPerformance, QuizScoreDistributionItem, ExamResult, StoredExamAttempt } from '@/lib/actions';
+import type { AnalyticsSummary, DatedScore, TopicPerformance, QuizScoreDistributionItem, StoredExamAttempt } from '@/lib/actions'; // ExamResult no longer needed directly here
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -54,11 +54,11 @@ export default function AnalyticsPage() {
     try {
       const historyString = localStorage.getItem('studySmartsExamHistory');
       const loadedAttempts: StoredExamAttempt[] = historyString ? JSON.parse(historyString) : [];
-      setStoredExamAttempts(loadedAttempts);
+      setStoredExamAttempts(loadedAttempts); // Store all attempts for detailed view
 
       if (loadedAttempts.length > 0) {
         const overallScores: DatedScore[] = loadedAttempts.map(attempt => ({
-          name: attempt.name,
+          name: `${attempt.subjectName} - ${attempt.name}`, // Combine subject and exam name
           score: attempt.overallScore,
           date: attempt.date,
           type: 'Exam',
@@ -85,13 +85,14 @@ export default function AnalyticsPage() {
           correct: data.correct,
           total: data.total,
           accuracy: data.total > 0 ? (data.correct / data.total) * 100 : 0,
-        })).sort((a,b) => b.accuracy - a.accuracy);
+        })).sort((a,b) => b.accuracy - a.accuracy); // Sort by accuracy descending
 
         const areasForImprovement = [...topicPerformance]
-          .filter(topic => topic.accuracy < 100)
-          .sort((a, b) => a.accuracy - b.accuracy)
-          .slice(0, 5);
+          .filter(topic => topic.accuracy < 100) // Only include if not perfect
+          .sort((a, b) => a.accuracy - b.accuracy) // Sort by accuracy ascending (worst first)
+          .slice(0, 5); // Top 5 areas
         
+        // Quiz analytics are not yet implemented with subjects, so these remain placeholder/empty
         const quizScoreDistribution: QuizScoreDistributionItem[] = []; 
         const quizzesTaken = 0; 
 
@@ -106,6 +107,7 @@ export default function AnalyticsPage() {
           quizScoreDistribution, 
         });
       } else {
+        // No attempts, set to default empty state
         setAnalyticsData({
             overallAverageScore: 0,
             quizzesTaken: 0,
@@ -123,11 +125,11 @@ export default function AnalyticsPage() {
         description: (error as Error).message || "Could not load analytics data from local storage.",
         variant: "destructive",
       });
-      setAnalyticsData(null); 
+      setAnalyticsData(null); // Set to null to show error state
     } finally {
         setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast]); // Removed analyticsData from dependencies to avoid re-triggering on its own update.
 
   if (isLoading) {
     return (
@@ -189,7 +191,7 @@ export default function AnalyticsPage() {
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <InfoCard title="Overall Average Score" value={`${overallAverageScore.toFixed(1)}%`} icon={<Activity className="h-6 w-6 text-primary" aria-hidden="true"/>} description="Based on completed exams"/>
+        <InfoCard title="Overall Average Exam Score" value={`${overallAverageScore.toFixed(1)}%`} icon={<Activity className="h-6 w-6 text-primary" aria-hidden="true"/>} description="Based on all completed exams"/>
         <InfoCard title="Quizzes Taken" value={quizzesTaken.toString()} icon={<TrendingUp className="h-6 w-6 text-primary" aria-hidden="true" />} description="Feature coming soon"/>
         <InfoCard title="Exams Taken" value={examsTaken.toString()} icon={<TrendingDown className="h-6 w-6 text-primary" aria-hidden="true"/>} />
       </div>
@@ -241,7 +243,7 @@ export default function AnalyticsPage() {
         <Card className="shadow-md">
           <CardHeader>
             <CardTitle>Quiz Score Distribution</CardTitle>
-            <CardDescription>Feature coming soon.</CardDescription>
+            <CardDescription>Feature coming soon (Quizzes are not yet integrated with subject-based analytics).</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px]">
             {quizScoreDistribution.length > 0 ? (
@@ -290,7 +292,7 @@ export default function AnalyticsPage() {
                 ))}
               </ul>
             ) : (
-              examsTaken > 0 ? (
+              examsTaken > 0 ? ( // Only show "Great job" if exams have been taken
                 <p className="text-center text-green-600 font-semibold py-10">Great job! No specific areas for improvement based on current exam data.</p>
               ) : (
                 <p className="text-center text-muted-foreground py-10">Complete an exam to identify areas for improvement.</p>
@@ -304,15 +306,15 @@ export default function AnalyticsPage() {
             <Card className="shadow-md">
                 <CardHeader>
                     <CardTitle>Previous Exam Attempts</CardTitle>
-                    <CardDescription>Review detailed results from your past exams.</CardDescription>
+                    <CardDescription>Review detailed results from your past exams across all subjects.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Accordion type="single" collapsible className="w-full" aria-label="Previous Exam Attempts">
-                        {storedExamAttempts.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((attempt, index) => ( 
+                        {storedExamAttempts.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((attempt) => ( 
                             <AccordionItem value={attempt.id} key={attempt.id}>
                                 <AccordionTrigger className="text-left hover:no-underline">
                                     <div className="flex items-center justify-between w-full">
-                                        <span>{attempt.name} - {new Date(attempt.date).toLocaleDateString()}</span>
+                                        <span>{attempt.subjectName}: {attempt.name} - {new Date(attempt.date).toLocaleDateString()}</span>
                                         <Badge variant={attempt.overallScore >= 70 ? "default" : attempt.overallScore >=50 ? "secondary" : "destructive"}>
                                             Score: {attempt.overallScore.toFixed(1)}%
                                         </Badge>

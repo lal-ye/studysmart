@@ -47,6 +47,12 @@ export async function generateQuizAction(
     if (result.flashcards.length === 0 && input.quizLength > 0) { 
         console.warn('[StudySmarts Debug - generateQuizAction] AI returned an empty set of flashcards when some were expected.');
     }
+    // Ensure IDs are strings, as per schema, even if model returns numbers
+    result.flashcards.forEach(fc => {
+        if (typeof fc.id !== 'string') {
+            fc.id = String(fc.id);
+        }
+    });
     return result.flashcards;
   } catch (error) {
     console.error('[StudySmarts Debug - generateQuizAction] Error generating quiz:', error);
@@ -94,8 +100,6 @@ export async function getExtraReadingsAction(
 ): Promise<GenerateExtraReadingsOutput> {
    try {
     const result = await generateExtraReadingsFlow(input);
-    // Ensure articles is always an array, even if the flow returns undefined/null
-    // Also filter out placeholder "No Relevant Articles Found" if it's the only one
     const articles = result.articles || [];
     if (articles.length === 1 && articles[0].title === "No Relevant Articles Found") {
         return { articles: [] };
@@ -136,11 +140,39 @@ export async function explainTermAction(input: ExplainTermInput): Promise<Explai
   }
 }
 
+// --- Subject Interface ---
+export interface Subject {
+  id: string;
+  name: string;
+  createdAt: string; // ISO string
+}
+
+// --- Stored Data Structures ---
+export interface StoredNote {
+  id: string;
+  subjectId: string;
+  content: string; // Markdown content
+  sourceName?: string; // Original source filename or "Pasted Text"
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+}
+
+export interface StoredQuiz {
+  id: string;
+  subjectId: string;
+  name: string; // User-defined name for the quiz
+  flashcards: Flashcard[];
+  courseMaterialExtract: string; // A small extract or name of material used
+  quizLengthUsed: number;
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+}
+
 // --- Analytics Data Structures ---
 export interface DatedScore {
   date: string; // 'YYYY-MM-DD'
   score: number; // Percentage
-  name: string;
+  name: string; // Exam name or Quiz name
   type: 'Quiz' | 'Exam';
 }
 
@@ -166,10 +198,11 @@ export interface AnalyticsSummary {
   quizScoreDistribution: QuizScoreDistributionItem[]; 
 }
 
-// New interface for storing exam attempts in localStorage
 export interface StoredExamAttempt {
-  id: string;
-  name: string;
+  id: string; // Unique ID for this attempt
+  subjectId: string;
+  subjectName: string; // Denormalized for easier display
+  name: string; // User-defined name for this exam attempt
   date: string; // 'YYYY-MM-DD'
   examQuestions: ExamQuestion[];
   examResults: ExamResult[];
@@ -179,9 +212,6 @@ export interface StoredExamAttempt {
 
 // --- Analytics Action ---
 export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
-  // This server action cannot access localStorage directly.
-  // The actual data will be loaded client-side in AnalyticsPage.tsx.
-  // This function now serves as a placeholder or could fetch from a DB in a real app.
   console.warn("getAnalyticsDataAction called. In this version, actual analytics data is loaded client-side from localStorage.");
   return {
     overallAverageScore: 0,
