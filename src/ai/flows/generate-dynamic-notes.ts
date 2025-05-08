@@ -65,23 +65,23 @@ const prompt = ai.definePrompt({
               Sub-topic 2.1
         \`\`\`
 5.  **Citations**:
-    *   Attribute all ideas to the source using a simple placeholder like [[1]] if only one source is provided. If \`sourceName\` is available, use it as the reference.
+    *   Attribute all ideas to the source using a styled placeholder like <span class="citation">[[1]]</span> if only one source is provided. If \`sourceName\` is available, use it as the reference.
     *   Include a 'References' section at the end. If \`sourceName\` is provided, list it as: \`1. {{{sourceName}}}\`. If not, state: \`1. Provided course material.\`
 
 Example overall note structure:
 \`\`\`markdown
 # Main Topic
-[[1]]
+<span class="citation">[[1]]</span>
 
 ## Subtopic 1
-[[1]]
+<span class="citation">[[1]]</span>
 
 > [!NOTE]
-> Highlighted insight from source. [[1]]
+> Highlighted insight from source. <span class="citation">[[1]]</span>
 
 ### Key Concept
-- Bullet point related to the concept. [[1]]
-- Another bullet point, perhaps with a link if relevant [External Resource](https://example.com). [[1]]
+- Bullet point related to the concept. <span class="citation">[[1]]</span>
+- Another bullet point, perhaps with a link if relevant [External Resource](https://example.com). <span class="citation">[[1]]</span>
 
 | Comparison Table | Column A | Column B |
 |------------------|----------|----------|
@@ -90,7 +90,7 @@ Example overall note structure:
 
 <details>
   <summary>Additional Details on Key Concept</summary>
-  Expanded explanation, possibly with more bullet points or a nested list. [[1]]
+  Expanded explanation, possibly with more bullet points or a nested list. <span class="citation">[[1]]</span>
 </details>
 
 ## Mindmap Overview
