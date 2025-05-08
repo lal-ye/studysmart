@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition, useEffect, useRef } from 'react'; // Added React import
+import React, { useState, useTransition, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,9 +10,10 @@ import { useToast } from '@/hooks/use-toast';
 import { generateNotesAction, type GenerateNotesActionInput } from '@/lib/actions';
 import FileUpload from '@/components/common/FileUpload';
 import { Lightbulb, Sparkles } from 'lucide-react';
-import remarkGfm from 'remark-gfm'; 
-import rehypeRaw from 'rehype-raw'; 
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { cn } from '@/lib/utils';
+import { Label } from "@/components/ui/label";
 
 export default function NotesPage() {
   const [textInput, setTextInput] = useState('');
@@ -23,6 +24,8 @@ export default function NotesPage() {
   const { toast } = useToast();
   const [mermaidScriptLoaded, setMermaidScriptLoaded] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [generationProgress, setGenerationProgress] = useState(0); // Track progress (0 to 100)
+
 
   useEffect(() => {
     const script = document.createElement('script');
@@ -36,12 +39,12 @@ export default function NotesPage() {
       setMermaidScriptLoaded(true);
     };
     document.head.appendChild(script);
-    
+
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      if (script.parentNode) { 
+      if (script.parentNode) {
         document.head.removeChild(script);
       }
     };
@@ -70,20 +73,20 @@ export default function NotesPage() {
 
   const handleTextInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = event.target.value;
-    setTextInput(newText); 
+    setTextInput(newText);
 
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
     debounceTimerRef.current = setTimeout(() => {
-      setCourseMaterial(newText); 
+      setCourseMaterial(newText);
       if (!sourceName && newText.trim()) {
         setSourceName("Pasted Text");
       } else if (!newText.trim() && sourceName === "Pasted Text") {
         setSourceName(undefined);
       }
-    }, 500); 
+    }, 500);
   };
 
   const handleGenerateNotes = () => {
@@ -96,11 +99,20 @@ export default function NotesPage() {
       return;
     }
 
+    setGenerationProgress(0); // Reset progress
     startTransition(async () => {
       try {
         const input: GenerateNotesActionInput = { material: courseMaterial, sourceName };
+        // Simulate progress and then call the actual generation
+        const progressInterval = setInterval(() => {
+          setGenerationProgress(prev => Math.min(prev + 10, 95)); // Simulate progress
+        }, 300);
+
         const notes = await generateNotesAction(input);
+        clearInterval(progressInterval);
+
         setGeneratedNotes(notes);
+        setGenerationProgress(100); // Set to 100% on completion
         toast({
           title: 'Notes Generated!',
           description: 'Your dynamic notes are ready below.',
@@ -112,18 +124,70 @@ export default function NotesPage() {
           variant: 'destructive',
         });
         setGeneratedNotes('');
+        setGenerationProgress(0);
       }
     });
   };
 
   const handleFileRead = (content: string, fileName?: string) => {
-    setTextInput(content); 
-    setCourseMaterial(content); 
+    setTextInput(content);
+    setCourseMaterial(content);
     setSourceName(fileName);
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
   };
+
+    const progressBarStyle = {
+        width: `${generationProgress}%`,
+    };
+
+  const generateButtonContent = () => {
+    if (isPending) {
+      return (
+        <>
+          <LoadingSpinner className="mr-2" aria-label="Generating notes..." />
+          Generating Notes ({generationProgress}%)
+        </>
+      );
+    } else {
+      return (
+        <>
+          <Lightbulb className="mr-2 h-4 w-4" aria-hidden="true" />
+          Generate Notes
+        </>
+      );
+    }
+  };
+
+
+  const LabelElement = React.forwardRef<HTMLLabelElement, React.ComponentPropsWithoutRef<typeof Label>>(
+      ({ className, ...props }, ref) => {
+        return (
+            <Label
+                ref={ref}
+                className={cn("block text-sm font-medium mb-1", className)}
+                {...props}
+            />
+        );
+      }
+  );
+  LabelElement.displayName = "LabelElement";
+
+
+  const generateTextareaElement = React.forwardRef<HTMLTextAreaElement, React.ComponentPropsWithoutRef<typeof Textarea>>(
+      ({className, ...props}, ref) => {
+          return (
+              <Textarea
+                  ref={ref}
+                  className={cn("min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm", className)}
+                  {...props}
+              />
+          )
+      }
+  )
+  generateTextareaElement.displayName = "generateTextareaElement";
+
 
   return (
     <div className="space-y-6">
@@ -142,24 +206,22 @@ export default function NotesPage() {
         <CardContent className="space-y-4">
           <FileUpload onFileRead={handleFileRead} />
           <div>
-            <Label htmlFor="courseMaterialText" className="block text-sm font-medium mb-1">
+            <LabelElement htmlFor="courseMaterialText">
               Course Material (Paste Text)
-            </Label>
-            <Textarea
+            </LabelElement>
+            <generateTextareaElement
               id="courseMaterialText"
               placeholder="Paste your course material here..."
-              value={textInput} 
+              value={textInput}
               onChange={handleTextInputChange}
               rows={10}
-              className="min-h-[200px]"
               aria-label="Paste course material for note generation"
             />
           </div>
         </CardContent>
         <CardFooter>
           <Button onClick={handleGenerateNotes} disabled={isPending || !courseMaterial.trim()} aria-label="Generate dynamic notes">
-            {isPending ? <LoadingSpinner className="mr-2" /> : <Lightbulb className="mr-2 h-4 w-4" aria-hidden="true" />}
-            Generate Notes
+            {generateButtonContent()}
           </Button>
         </CardFooter>
       </Card>
@@ -169,6 +231,9 @@ export default function NotesPage() {
           <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]" role="status" aria-live="polite">
             <LoadingSpinner size={48} />
             <p className="mt-4 text-muted-foreground">Generating your notes, please wait...</p>
+             <div className="relative w-full mt-4 rounded-full h-2 bg-muted">
+                <div className="absolute left-0 top-0 h-full rounded-full bg-primary transition-width duration-300" style={progressBarStyle}></div>
+              </div>
           </CardContent>
         </Card>
       )}
