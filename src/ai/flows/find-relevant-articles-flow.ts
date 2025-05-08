@@ -89,16 +89,9 @@ const findRelevantArticlesFlow = ai.defineFlow(
     output.articles = output.articles.filter(article => isValidUrl(article.url));
 
     if (output.articles.length === 0) {
-      console.warn('[StudySmarts Debug - findRelevantArticlesFlow] No valid articles with well-formed URLs for topic "'+ input.topic +'". Providing fallback.');
-      // It's better to return an empty array and let the UI handle it, or throw an error if articles are critical.
-      // Providing a generic fallback might not always be desired.
-      // For now, let's return an empty array as per original behavior if no valid articles found.
-      // If a fallback is truly desired, it should be more contextual or clearly marked as a fallback.
-      // Example fallback:
-      // output.articles = [{
-      //   title: `Search for "${input.topic}" on a search engine`,
-      //   url: `https://www.google.com/search?q=${encodeURIComponent(input.topic)}`
-      // }];
+      console.warn('[StudySmarts Debug - findRelevantArticlesFlow] No valid articles with well-formed URLs for topic "'+ input.topic +'". Returning empty array.');
+      // Return empty array, let UI handle "no articles found" message.
+      output.articles = []; 
     } else {
       console.log('[StudySmarts Debug - findRelevantArticlesFlow] Model returned '+ output.articles.length +' valid articles for topic "'+ input.topic +'".');
     }
@@ -106,3 +99,4 @@ const findRelevantArticlesFlow = ai.defineFlow(
     return output;
   }
 );
+
