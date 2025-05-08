@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, type CSSProperties } from 'react';
+import { useState, useTransition, type CSSProperties, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,12 +26,22 @@ const difficultyColors: Record<Flashcard['difficulty'], string> = {
 
 function FlashcardComponent({ flashcard }: FlashcardComponentProps) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null); // Ref to the card element
+
+  // Adjust the height based on content
+  useEffect(() => {
+    if (cardRef.current) {
+      const cardHeight = cardRef.current.scrollHeight;
+      cardRef.current.style.height = `${cardHeight}px`;
+    }
+  }, [flashcard, isFlipped]);
 
   const cardStyle: CSSProperties = {
     perspective: '1000px',
     transformStyle: 'preserve-3d',
     transition: 'transform 0.6s',
     transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+    height: 'auto', // Allow dynamic height based on content
   };
 
   const faceStyle: CSSProperties = {
@@ -45,6 +55,7 @@ function FlashcardComponent({ flashcard }: FlashcardComponentProps) {
     justifyContent: 'space-between',
     padding: '1.5rem', // p-6
     borderRadius: '0.5rem', // rounded-lg
+    boxSizing: 'border-box', // Ensure padding doesn't increase overall size
   };
 
   const frontStyle: CSSProperties = {
@@ -63,43 +74,49 @@ function FlashcardComponent({ flashcard }: FlashcardComponentProps) {
 
   return (
     <div
-      className="relative w-full h-full"
-      style={cardStyle}
-      onClick={() => setIsFlipped(!isFlipped)}
+      className="relative w-full " // Make the container relative to contain absolute faces
+      style={{ height: 'auto' }} // Ensure the card height adjusts to content
     >
-      {/* Front of the card */}
       <div
-        className="absolute w-full h-full"
-        style={frontStyle}
+        className="relative w-full " // Keep the card relative for size
+        style={cardStyle}
+        onClick={() => setIsFlipped(!isFlipped)}
+        ref={cardRef} // Attach the ref
       >
-        <div>
-          <p className="text-sm text-muted-foreground">Question ID: {flashcard.id}</p>
-          <h3 className="text-lg font-semibold mt-2 mb-4">{flashcard.question}</h3>
+        {/* Front of the card */}
+        <div
+          className="absolute w-full h-full"
+          style={frontStyle}
+        >
+          <div>
+            <p className="text-sm text-muted-foreground">Question ID: {flashcard.id}</p>
+            <h3 className="text-lg font-semibold mt-2 mb-4 break-words">{flashcard.question}</h3>
+          </div>
+          <div className="flex justify-between items-center">
+            <Badge className={difficultyColors[flashcard.difficulty]}>{flashcard.difficulty}</Badge>
+            <RotateCcw className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+          </div>
         </div>
-        <div className="flex justify-between items-center">
-          <Badge className={difficultyColors[flashcard.difficulty]}>{flashcard.difficulty}</Badge>
-          <RotateCcw className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-        </div>
-      </div>
 
-      {/* Back of the card */}
-      <div
-        className="absolute w-full h-full"
-        style={backStyle}
-      >
-        <div>
-          <h4 className="text-md font-semibold mb-2">Answer:</h4>
-          <p className="text-sm leading-relaxed">{flashcard.answer}</p>
-        </div>
-        <div className="flex justify-between items-center">
-          {flashcard.tags && flashcard.tags.length > 0 && (
-            <div className="flex items-center">
-              <Tags className="h-4 w-4 mr-1 self-center" />
-              {flashcard.tags.map(tag => (
-                <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-              ))}
-            </div>
-          )}
+        {/* Back of the card */}
+        <div
+          className="absolute w-full h-full"
+          style={backStyle}
+        >
+          <div>
+            <h4 className="text-md font-semibold mb-2">Answer:</h4>
+            <p className="text-sm leading-relaxed break-words">{flashcard.answer}</p>
+          </div>
+          <div className="flex justify-between items-center">
+            {flashcard.tags && flashcard.tags.length > 0 && (
+              <div className="flex items-center">
+                <Tags className="h-4 w-4 mr-1 self-center" />
+                {flashcard.tags.map(tag => (
+                  <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
