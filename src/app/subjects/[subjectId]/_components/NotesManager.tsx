@@ -19,12 +19,11 @@ import {
     Trash2, 
     Edit, 
     Save, 
-    PlusCircle, 
-    Eye,
+    Eye, // PlusCircle removed as not directly used here
     Info as NoteIcon,
     AlertTriangle as WarningIcon
 } from 'lucide-react';
-import remarkGfm from 'remark-gfm';
+import remarkGfm from 'remarkGfm';
 import rehypeRaw from 'rehype-raw';
 import { cn } from '@/lib/utils';
 import { Label } from "@/components/ui/label";
@@ -60,7 +59,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [editedContent, setEditedContent] = useState('');
 
-  const [generatedNotesContent, setGeneratedNotesContent] = useState(''); // For newly generated notes
+  const [generatedNotesContent, setGeneratedNotesContent] = useState('');
   const [isGeneratingNotes, startGeneratingNotesTransition] = useTransition();
   const { toast } = useToast();
   const [mermaidScriptLoaded, setMermaidScriptLoaded] = useState(false);
@@ -70,7 +69,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
   const [diagramCode, setDiagramCode] = useState<string | null>(null);
 
 
-  const getNotesStorageKey = () => NOTES_STORAGE_KEY_BASE; // Global key, filtered by subjectId
+  const getNotesStorageKey = () => NOTES_STORAGE_KEY_BASE; 
 
 
   const loadNotes = useCallback(() => {
@@ -95,11 +94,24 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
 
 
   useEffect(() => {
+    const scriptId = 'mermaid-script';
+    if (document.getElementById(scriptId)) {
+        if (typeof window !== 'undefined' && (window as any).mermaid && !(window as any).mermaidInitialized) {
+            (window as any).mermaid.initialize({ startOnLoad: false, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default' });
+            (window as any).mermaidInitialized = true; // Mark as initialized
+        }
+        setMermaidScriptLoaded(true);
+        return;
+    }
+
     const script = document.createElement('script');
+    script.id = scriptId;
     script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+    script.async = true;
     script.onload = () => {
-      if (typeof window !== 'undefined' && (window as any).mermaid) {
+      if (typeof window !== 'undefined' && (window as any).mermaid && !(window as any).mermaidInitialized) {
         (window as any).mermaid.initialize({ startOnLoad: false, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default' });
+        (window as any).mermaidInitialized = true; 
       }
       setMermaidScriptLoaded(true);
     };
@@ -107,17 +119,19 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
 
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      if (script.parentNode) document.head.removeChild(script);
+      // Do not remove the script to avoid re-downloading; it's idempotent.
     };
   }, []);
+
 
   useEffect(() => {
     if (mermaidScriptLoaded && (generatedNotesContent || (isViewingNote && selectedNote)) && notesOutputRef.current) {
       try {
         if (typeof window !== 'undefined' && (window as any).mermaid) {
-          (window as any).mermaid.run({
-            nodes: Array.from(notesOutputRef.current.querySelectorAll('.language-mermaid')),
-          });
+          const elementsToRender = Array.from(notesOutputRef.current.querySelectorAll('.language-mermaid, .mermaid:not([data-processed="true"])'));
+          if(elementsToRender.length > 0) {
+            (window as any).mermaid.run({ nodes: elementsToRender });
+          }
         }
       } catch (error) {
         console.error("Error rendering Mermaid diagrams:", error);
@@ -130,15 +144,14 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     if (mermaidScriptLoaded && diagramCode) {
       try {
         if (typeof window !== 'undefined' && (window as any).mermaid) {
-          // Ensure the modal content is available in the DOM if it's rendered conditionally
           setTimeout(() => {
-            const modalDiagramElements = document.querySelectorAll('.mermaid-modal-content .mermaid');
+            const modalDiagramElements = document.querySelectorAll('.mermaid-modal-content .mermaid:not([data-processed="true"])'));
             if (modalDiagramElements.length > 0) {
                (window as any).mermaid.run({
                  nodes: modalDiagramElements,
                });
             }
-          }, 0);
+          }, 100); // Delay to ensure modal DOM is ready
         }
       } catch (error) {
         console.error("Error rendering Mermaid diagram in modal:", error);
@@ -175,16 +188,17 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
         const input: GenerateNotesActionInput = { material: courseMaterial, sourceName };
         let currentProgress = 0;
         const progressInterval = setInterval(() => {
-          currentProgress = Math.min(currentProgress + 5, 95);
+          currentProgress = Math.min(currentProgress + 5, 95); // Stop at 95% until actual completion
           setGenerationProgress(currentProgress);
-        }, 200);
+        }, 200); // Simulate progress every 200ms
 
         const notes = await generateNotesAction(input);
         clearInterval(progressInterval);
         setGeneratedNotesContent(notes);
-        setGenerationProgress(100);
+        setGenerationProgress(100); // Mark as 100% complete
         toast({ title: 'Notes Preview Ready!', description: 'Review your new notes below and save them.' });
       } catch (error) {
+        clearInterval(progressInterval); // Ensure interval is cleared on error
         setGenerationProgress(0);
         toast({ title: 'Error Generating Notes', description: (error as Error).message, variant: 'destructive' });
         setGeneratedNotesContent('');
@@ -277,7 +291,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
         const filteredNotes = allNotes.filter(n => !(n.id === noteId && n.subjectId === subjectId));
         localStorage.setItem(getNotesStorageKey(), JSON.stringify(filteredNotes));
 
-        setStoredNotes(prev => prev.filter(n => n.id !== noteId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        setStoredNotes(prev => prev.filter(n => n.id !== noteId).sort((a,b) => new Date(a.createdAt).getTime() - new Date(a.createdAt).getTime()));
         if (selectedNote?.id === noteId) {
           setSelectedNote(null);
           setIsViewingNote(false);
@@ -309,16 +323,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       toast({ title: 'Copy Failed', variant: 'destructive' });
     });
   };
-
-  /**
-   * Exports the note content as a PDF using the browser's print functionality.
-   * This method attempts to preserve formatting and render Mermaid diagrams.
-   * Note: For higher fidelity PDF generation, especially for complex notes or consistent cross-browser
-   * output, consider dedicated libraries like jsPDF (with html2canvas) for client-side generation,
-   * or server-side PDF rendering solutions (e.g., Puppeteer). These alternatives offer more control
-   * but also introduce more complexity. The current window.print() approach is a balance of
-   * simplicity and functionality.
-   */
+  
   const handleExportPdf = (contentToExport: string, sourceName?: string) => {
     if (!contentToExport && !notesOutputRef.current) {
         toast({ title: 'No Content', description: 'Nothing to export to PDF.', variant: 'destructive' });
@@ -328,56 +333,48 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     const printWindow = window.open('', '_blank');
     if (printWindow) {
         printWindow.document.open();
+        // Inject Tailwind styles and custom styles for printing
+        // Note: This is a simplified approach. For complex styles, consider dedicated PDF libraries.
+        const tailwindStyles = Array.from(window.opener.document.querySelectorAll('style, link[rel="stylesheet"]'))
+            .map(el => el.outerHTML)
+            .join('');
+        
+        const bodyClasses = window.opener.document.body.className; // Capture body classes for theme (dark/light)
+
         printWindow.document.write(`
             <html>
             <head>
                 <title>Print Notes: ${sourceName || 'StudySmarts Notes'}</title>
+                ${tailwindStyles}
+                <style>
+                    body { margin: 20px; font-family: var(--font-jetbrains-mono), monospace; }
+                    .prose { max-width: 100% !important; } /* Override prose max-width for printing */
+                    .mermaid { page-break-inside: avoid; } /* Attempt to keep diagrams on one page */
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } /* Ensure colors print */
+                        .no-print { display: none !important; }
+                    }
+                </style>
             </head>
-            <body>
+            <body class="${bodyClasses}">
                 <div id="print-content-wrapper">
-                    <!-- Content will be injected here by script -->
+                    <!-- Content will be injected here -->
                 </div>
                 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
                 <script>
                     function applyParentStylesAndContent() {
                         const printContentWrapper = printWindow.document.getElementById('print-content-wrapper');
                         if (!printContentWrapper) return;
-
-                        // Clone <style> tags from parent
-                        window.opener.document.querySelectorAll('style').forEach(styleTag => {
-                            const newStyleTag = printWindow.document.createElement('style');
-                            newStyleTag.textContent = styleTag.textContent;
-                            printWindow.document.head.appendChild(newStyleTag);
-                        });
-
-                        // Clone <link rel="stylesheet"> tags from parent
-                        window.opener.document.querySelectorAll('link[rel="stylesheet"]').forEach(linkTag => {
-                            const newLinkTag = printWindow.document.createElement('link');
-                            newLinkTag.rel = 'stylesheet';
-                            newLinkTag.type = 'text/css';
-                            newLinkTag.href = linkTag.href;
-                            newLinkTag.media = 'all';
-                            printWindow.document.head.appendChild(newLinkTag);
-                        });
                         
-                        // Add dark mode class to body if parent has it, for consistent styling
-                        if (window.opener.document.documentElement.classList.contains('dark')) {
-                            printWindow.document.body.classList.add('dark');
-                        }
-                        
-                        // Inject the note content
                         const notesHTML = ${notesOutputRef.current ? `\`${notesOutputRef.current.innerHTML.replace(/`/g, '\\`')}\`` : `\`<pre>${contentToExport.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/`/g, '\\`')}</pre>\``};
                         printContentWrapper.innerHTML = '<div class="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none">' + notesHTML + '</div>';
 
-
-                        // Initialize and render Mermaid diagrams
-                        const isDarkModeForMermaid = printWindow.document.body.classList.contains('dark');
                         mermaid.initialize({ 
                             startOnLoad: false,
-                            theme: isDarkModeForMermaid ? 'dark' : 'default' 
+                            theme: printWindow.document.body.classList.contains('dark') ? 'dark' : 'default' 
                         });
                         
-                        setTimeout(() => { // Ensure DOM is updated with content before running Mermaid
+                        setTimeout(() => { 
                             try {
                                 const mermaidElements = printWindow.document.querySelectorAll('.language-mermaid, .mermaid');
                                 if (mermaidElements.length > 0) {
@@ -386,14 +383,13 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
                             } catch (err) {
                                 console.error("Error rendering Mermaid in print window:", err);
                             } finally {
-                                printWindow.focus(); // Focus before print
+                                printWindow.focus(); 
                                 printWindow.print();
-                                // printWindow.close(); // Optionally close after printing
+                                // printWindow.close(); // Auto-close can be disruptive
                             }
-                        }, 1200); // Increased delay slightly for complex diagrams/styles
+                        }, 1500); // Increased delay for more complex content and styles
                     }
                     
-                    // Execute after the document structure is written
                     if (printWindow.document.readyState === 'complete') {
                         applyParentStylesAndContent();
                     } else {
@@ -410,12 +406,13 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     }
 };
   
+  
   const markdownComponents = {
       span: ({ node, className, children, ...props }: any) => {
         if (className === 'citation') {
           return (
             <span
-              className="inline-block px-2 py-0.5 mx-0.5 text-xs font-semibold text-primary bg-primary/10 rounded-full border border-primary/30 align-middle leading-none shadow-sm"
+              className="inline-block px-2 py-0.5 mx-0.5 text-xs font-bold text-primary-foreground bg-primary rounded-full border border-border align-middle leading-none shadow-neo-sm" // Pill-like format
               {...props}
             >
               {children}
@@ -436,19 +433,9 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             let firstChildText = pChildren[0] as string;
             let textModified = false;
   
-            if (firstChildText.startsWith('[!NOTE]')) {
-              calloutType = 'NOTE';
-              firstChildText = firstChildText.substring('[!NOTE]'.length).trimStart();
-              textModified = true;
-            } else if (firstChildText.startsWith('[!IMPORTANT]')) {
-              calloutType = 'IMPORTANT';
-              firstChildText = firstChildText.substring('[!IMPORTANT]'.length).trimStart();
-              textModified = true;
-            } else if (firstChildText.startsWith('[!TIP]')) {
-              calloutType = 'TIP';
-              firstChildText = firstChildText.substring('[!TIP]'.length).trimStart();
-              textModified = true;
-            }
+            if (firstChildText.startsWith('[!NOTE]')) { calloutType = 'NOTE'; firstChildText = firstChildText.substring('[!NOTE]'.length).trimStart(); textModified = true; } 
+            else if (firstChildText.startsWith('[!IMPORTANT]')) { calloutType = 'IMPORTANT'; firstChildText = firstChildText.substring('[!IMPORTANT]'.length).trimStart(); textModified = true; } 
+            else if (firstChildText.startsWith('[!TIP]')) { calloutType = 'TIP'; firstChildText = firstChildText.substring('[!TIP]'.length).trimStart(); textModified = true; }
   
             if (textModified) {
               const updatedPChildren = firstChildText.length > 0 ? [firstChildText, ...pChildren.slice(1)] : pChildren.slice(1);
@@ -460,65 +447,57 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
   
         if (calloutType) {
           let iconComponent;
-          let borderColorClass, bgColorClass, iconColorClass, textColorClass;
-  
-          switch (calloutType) {
-            case 'NOTE':
-              iconComponent = <NoteIcon className="h-5 w-5" />;
-              borderColorClass = 'border-blue-500 dark:border-blue-400';
-              bgColorClass = 'bg-blue-50 dark:bg-blue-900/30'; 
-              iconColorClass = 'text-blue-600 dark:text-blue-400';
-              textColorClass = 'text-blue-800 dark:text-blue-200';
-              break;
-            case 'IMPORTANT':
-              iconComponent = <WarningIcon className="h-5 w-5" />;
-              borderColorClass = 'border-yellow-500 dark:border-yellow-400';
-              bgColorClass = 'bg-yellow-50 dark:bg-yellow-900/30'; 
-              iconColorClass = 'text-yellow-600 dark:text-yellow-400';
-              textColorClass = 'text-yellow-800 dark:text-yellow-200';
-              break;
-            case 'TIP':
-              iconComponent = <TipIcon className="h-5 w-5" />;
-              borderColorClass = 'border-green-500 dark:border-green-400';
-              bgColorClass = 'bg-green-50 dark:bg-green-900/30';
-              iconColorClass = 'text-green-600 dark:text-green-400';
-              textColorClass = 'text-green-800 dark:text-green-200';
-              break;
-            default: 
-              return <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm text-muted-foreground" {...props}>{children}</blockquote>;
+          let borderColorHex, bgColorHex, iconColorHex, textColorHex; // Use hex for direct style to avoid purge issues
+
+          switch (calloutType) { // Colors adjusted for Neobrutalism (ensure high contrast with theme)
+            case 'NOTE': iconComponent = <NoteIcon className="h-5 w-5" />; borderColorHex = '#3b82f6'; bgColorHex = '#eff6ff'; iconColorHex = '#2563eb'; textColorHex = '#1e40af'; break; // Blue
+            case 'IMPORTANT': iconComponent = <WarningIcon className="h-5 w-5" />; borderColorHex = '#f59e0b'; bgColorHex = '#fffbeb'; iconColorHex = '#d97706'; textColorHex = '#92400e'; break; // Amber/Yellow
+            case 'TIP': iconComponent = <TipIcon className="h-5 w-5" />; borderColorHex = '#10b981'; bgColorHex = '#ecfdf5'; iconColorHex = '#059669'; textColorHex = '#047857'; break; // Green
+            default: return <blockquote className="border-l-4 border-foreground pl-4 italic my-4 bg-muted/30 p-3 rounded-r-md shadow-neo-sm text-muted-foreground" {...props}>{children}</blockquote>;
           }
-  
+          
+          // Dark mode colors (ensure these contrast well with dark theme background)
+          const darkBorderColorHex = calloutType === 'NOTE' ? '#60a5fa' : calloutType === 'IMPORTANT' ? '#facc15' : '#34d399';
+          const darkBgColorHex = calloutType === 'NOTE' ? 'rgba(59,130,246,0.15)' : calloutType === 'IMPORTANT' ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)';
+          const darkIconColorHex = calloutType === 'NOTE' ? '#93c5fd' : calloutType === 'IMPORTANT' ? '#fde047' : '#6ee7b7';
+          const darkTextColorHex = calloutType === 'NOTE' ? '#bfdbfe' : calloutType === 'IMPORTANT' ? '#fef08a' : '#a7f3d0';
+
+
           return (
-            <div className={cn('my-4 p-4 border-l-4 rounded-r-md shadow-sm', borderColorClass, bgColorClass, (props as any).className)}>
+            <div className={cn('my-4 p-4 border-l-4 rounded-r-none shadow-neo-sm', (props as any).className)} 
+                 style={{ 
+                    borderColor: document.documentElement.classList.contains('dark') ? darkBorderColorHex : borderColorHex, 
+                    backgroundColor: document.documentElement.classList.contains('dark') ? darkBgColorHex : bgColorHex 
+                 }}>
               <div className="flex items-start">
-                <div className={cn("flex-shrink-0 mr-3 mt-0.5", iconColorClass)}>{iconComponent}</div>
-                <div className={cn("flex-grow text-sm", textColorClass)}>{finalCalloutContent}</div> 
+                <div className={cn("flex-shrink-0 mr-3 mt-0.5")} style={{ color: document.documentElement.classList.contains('dark') ? darkIconColorHex : iconColorHex }}>{iconComponent}</div>
+                <div className={cn("flex-grow text-sm prose-sm")} style={{ color: document.documentElement.classList.contains('dark') ? darkTextColorHex : textColorHex }}>{finalCalloutContent}</div> 
               </div>
             </div>
           );
         }
-        return <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm text-muted-foreground" {...props}>{children}</blockquote>;
+        return <blockquote className="border-l-4 border-foreground pl-4 italic my-4 bg-muted/30 p-3 rounded-r-md shadow-neo-sm text-muted-foreground" {...props}>{children}</blockquote>;
       },
       pre: ({ node, ...props }: any) => {
           const childrenArray = React.Children.toArray(props.children);
           const codeChild = childrenArray.find((child: any) => React.isValidElement(child) && child.props.className?.includes('language-mermaid')) as React.ReactElement | undefined;
           if (React.isValidElement(codeChild) && codeChild.props.className?.includes('language-mermaid')) {
           return (
-            <div className="my-4 bg-muted/30 p-3 rounded-md shadow-sm"> 
+            <div className="my-4 bg-card p-3 rounded-none border-2 border-border shadow-neo-sm"> 
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setDiagramCode(String(codeChild.props.children).replace(/\n$/, ''))}
                 aria-label="View diagram in pop-out window"
-                className="mb-2 bg-background hover:bg-accent"
+                className="mb-2 bg-background hover:bg-accent text-xs" // Smaller button
               >
-                <Eye className="mr-2 h-4 w-4" /> View Diagram
+                <Eye className="mr-2 h-3 w-3" /> View Diagram
               </Button>
-              <pre {...props} className="language-mermaid bg-background text-foreground p-0 overflow-auto">{props.children}</pre>
+              <pre {...props} className="language-mermaid bg-background text-foreground p-0 overflow-auto rounded-none border border-border">{props.children}</pre>
             </div>
           );
           }
-          return <pre className="bg-muted/50 p-4 rounded-md overflow-auto shadow-sm" {...props} />;
+          return <pre className="bg-muted/50 p-4 rounded-none border-2 border-border shadow-neo-sm overflow-auto" {...props} />;
       },
       code: ({ node, inline, className, children, ...props }: any) => {
           const match = /language-(\w+)/.exec(className || '');
@@ -526,37 +505,37 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             return <code className="language-mermaid" {...props}>{String(children).replace(/\n$/, '')}</code>;
           }
           return (
-          <code className={cn(className, !inline && "block whitespace-pre-wrap bg-muted/50 p-2 rounded font-mono text-sm", inline && "px-1 py-0.5 bg-muted/50 rounded-sm font-mono text-sm")} {...props}>
+          <code className={cn(className, !inline && "block whitespace-pre-wrap bg-muted/30 p-2 rounded-none border border-border", inline && "px-1 py-0.5 bg-muted/30 rounded-sm border border-border font-mono text-sm")} {...props}>
               {children}
           </code>
           );
       },
-      img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-md my-4 shadow-md border border-border" alt={props.alt || ''} {...props} data-ai-hint="illustration drawing"/>,
-      table: ({node, ...props}: any) => <div className="overflow-x-auto"><table className="w-full my-4 border-collapse border border-border shadow-sm" {...props} /></div>,
-      thead: ({node, ...props}: any) => <thead className="bg-muted/50 border-b border-border" {...props} />,
-      th: ({node, ...props}: any) => <th className="border border-border px-4 py-2 text-left font-semibold text-card-foreground" {...props} />,
-      td: ({node, ...props}: any) => <td className="border border-border px-4 py-2 text-card-foreground" {...props} />,
-      details: ({node, ...props}: any) => <details className="my-4 p-3 border rounded-md bg-card shadow-sm open:ring-1 open:ring-primary" {...props} />,
-      summary: ({node, ...props}: any) => <summary className="font-semibold cursor-pointer hover:text-primary list-inside text-card-foreground" {...props} />,
-      h1: ({node, ...props}: any) => <h1 className="text-3xl lg:text-4xl font-extrabold my-5 text-primary border-b border-border pb-2" {...props} />,
-      h2: ({node, ...props}: any) => <h2 className="text-2xl lg:text-3xl font-bold my-4 text-foreground border-b border-border pb-1" {...props} />,
-      h3: ({node, ...props}: any) => <h3 className="text-xl lg:text-2xl font-semibold my-3 text-foreground" {...props} />,
-      h4: ({node, ...props}: any) => <h4 className="text-lg lg:text-xl font-semibold my-2 text-foreground" {...props} />,
+      img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-none my-4 shadow-neo-sm border-2 border-border" alt={props.alt || ''} {...props} data-ai-hint="illustration drawing"/>,
+      table: ({node, ...props}: any) => <div className="overflow-x-auto my-4 border-2 border-border shadow-neo-sm"><table className="w-full border-collapse" {...props} /></div>,
+      thead: ({node, ...props}: any) => <thead className="bg-muted/50 border-b-2 border-border" {...props} />,
+      th: ({node, ...props}: any) => <th className="border-2 border-border px-4 py-2 text-left font-bold text-card-foreground" {...props} />,
+      td: ({node, ...props}: any) => <td className="border-2 border-border px-4 py-2 text-card-foreground" {...props} />,
+      details: ({node, ...props}: any) => <details className="my-4 p-3 border-2 border-border rounded-none bg-card shadow-neo-sm open:ring-2 open:ring-primary open:shadow-neo-md" {...props} />,
+      summary: ({node, ...props}: any) => <summary className="font-bold cursor-pointer hover:text-primary list-inside text-card-foreground" {...props} />,
+      h1: ({node, ...props}: any) => <h1 className="text-3xl lg:text-4xl font-extrabold my-5 text-primary border-b-3 border-border pb-2" {...props} />,
+      h2: ({node, ...props}: any) => <h2 className="text-2xl lg:text-3xl font-bold my-4 text-foreground border-b-2 border-border pb-1" {...props} />,
+      h3: ({node, ...props}: any) => <h3 className="text-xl lg:text-2xl font-bold my-3 text-foreground" {...props} />, // font-semibold to font-bold
+      h4: ({node, ...props}: any) => <h4 className="text-lg lg:text-xl font-bold my-2 text-foreground" {...props} />, // font-semibold to font-bold
       ul: ({node, ...props}: any) => <ul className="list-disc pl-6 my-3 space-y-1 text-foreground" {...props} />,
       ol: ({node, ...props}: any) => <ol className="list-decimal pl-6 my-3 space-y-1 text-foreground" {...props} />,
       li: ({node, ...props}: any) => <li className="mb-1 leading-relaxed" {...props} />,
       p: ({node, ...props}: any) => <p className="my-3 leading-relaxed text-foreground" {...props} />,
-      a: ({node, ...props}: any) => <a className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring" {...props} />,
-      hr: ({node, ...props}: any) => <hr className="my-6 border-border" {...props} />,
+      a: ({node, ...props}: any) => <a className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring font-bold" {...props} />, // Added font-bold
+      hr: ({node, ...props}: any) => <hr className="my-6 border-t-2 border-border" {...props} />, // Thicker hr
   };
 
   const currentDisplayContent = isViewingNote && selectedNote ? selectedNote.content : generatedNotesContent;
   const currentSourceName = isViewingNote && selectedNote ? selectedNote.sourceName : sourceName;
   
   const renderProgressBar = () => (
-     <div className="relative w-full mt-4 rounded-full h-2 bg-muted">
+     <div className="relative w-full mt-4 rounded-none h-2.5 bg-muted border-2 border-border shadow-neo-sm"> {/* Neobrutalist progress bar */}
         <div 
-            className="absolute left-0 top-0 h-full rounded-full bg-primary transition-[width] duration-300" 
+            className="absolute left-0 top-0 h-full bg-primary transition-[width] duration-300 border-r-2 border-border" 
             style={{ width: `${generationProgress}%` }}
             aria-valuenow={generationProgress}
             aria-valuemin={0}
@@ -572,11 +551,11 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
 
     return (
       <Dialog open={!!diagramCode} onOpenChange={(open) => !open && setDiagramCode(null)}>
-        <DialogContent className="max-w-3xl min-h-[300px] flex flex-col sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl min-h-[400px] sm:min-h-[500px] lg:min-h-[600px]">
-          <DialogHeader>
-            <DialogTitle>Diagram View</DialogTitle>
+        <DialogContent className="max-w-3xl min-h-[300px] flex flex-col sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl min-h-[400px] sm:min-h-[500px] lg:min-h-[600px] bg-card border-3 border-border shadow-neo-lg rounded-none">
+          <DialogHeader className="border-b-2 border-border pb-3">
+            <DialogTitle className="font-bold">Diagram View</DialogTitle>
           </DialogHeader>
-          <div className="p-4 flex-grow overflow-auto mermaid-modal-content">
+          <div className="p-4 flex-grow overflow-auto mermaid-modal-content bg-background border-2 border-border m-2">
             <div className="mermaid flex justify-center items-center w-full h-full">{diagramCode}</div>
           </div>
         </DialogContent>
@@ -588,7 +567,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
   return (
     <div className="space-y-6">
        {!isViewingNote && !isEditingNote && !generatedNotesContent && (
-        <Card className="shadow-lg">
+        <Card className="shadow-neo-lg">
             <CardHeader>
                 <div className="flex items-center gap-3">
                 <Sparkles className="h-8 w-8 text-primary" />
@@ -603,7 +582,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             <CardContent className="space-y-4">
             <FileUpload onFileRead={handleFileRead} aria-label="Upload course material file"/>
             <div>
-                <Label htmlFor="courseMaterialTextNotes" className="block text-sm font-medium mb-1">Course Material (Paste Text)</Label>
+                <Label htmlFor="courseMaterialTextNotes" className="block text-sm font-bold mb-1">Course Material (Paste Text)</Label>
                 <Textarea
                     id="courseMaterialTextNotes"
                     placeholder="Paste course material here..."
@@ -629,7 +608,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
 
 
       {isGeneratingNotes && generationProgress < 100 && (
-        <Card>
+        <Card className="shadow-neo-md">
           <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]" role="status" aria-live="polite">
             <LoadingSpinner size={48} />
             <p className="mt-4 text-muted-foreground">Generating notes... {generationProgress}%</p>
@@ -639,20 +618,20 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       )}
 
       {generatedNotesContent && !isViewingNote && !isEditingNote && (
-        <Card className="shadow-lg">
+        <Card className="shadow-neo-lg">
           <CardHeader>
-            <CardTitle className="text-xl font-semibold">New Notes Preview for "{subjectName}"</CardTitle>
+            <CardTitle className="text-xl font-bold">New Notes Preview for "{subjectName}"</CardTitle>
             <CardDescription>Review your generated notes. Save them to add to this subject.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div ref={notesOutputRef} className="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none p-4 bg-muted/30 rounded-md overflow-x-auto border border-border">
+            <div ref={notesOutputRef} className="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none p-4 bg-muted/30 rounded-none overflow-x-auto border-2 border-border shadow-neo-sm">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={markdownComponents}>
                     {generatedNotesContent}
                 </ReactMarkdown>
             </div>
           </CardContent>
-          <CardFooter className="flex-wrap gap-2 justify-end">
-            <Button onClick={handleSaveGeneratedNotes} variant="default" className="bg-green-600 hover:bg-green-700" aria-label="Save generated notes">
+          <CardFooter className="flex-wrap gap-2 justify-end pt-4">
+            <Button onClick={handleSaveGeneratedNotes} variant="default" className="bg-primary hover:bg-primary/90" aria-label="Save generated notes">
               <Save className="mr-2 h-4 w-4" /> Save These Notes
             </Button>
             <Button onClick={() => { setGeneratedNotesContent(''); setTextInput(''); setCourseMaterial(''); setSourceName(undefined); setGenerationProgress(0); }} variant="outline" aria-label="Discard generated notes">
@@ -663,20 +642,20 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       )}
 
       {isEditingNote && selectedNote && (
-        <Card className="shadow-lg">
+        <Card className="shadow-neo-lg">
           <CardHeader>
-            <CardTitle className="text-xl font-semibold">Editing Note: {selectedNote.sourceName}</CardTitle>
+            <CardTitle className="text-xl font-bold">Editing Note: {selectedNote.sourceName}</CardTitle>
           </CardHeader>
           <CardContent>
             <Textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
               rows={20}
-              className="min-h-[400px] font-mono text-sm"
+              className="min-h-[400px] font-mono text-sm" // font-mono matches body
               aria-label="Edit note content"
             />
           </CardContent>
-          <CardFooter className="justify-end gap-2">
+          <CardFooter className="justify-end gap-2 pt-4">
             <Button onClick={saveEditedNote} aria-label="Save edited note">
               <Save className="mr-2 h-4 w-4" /> Save Changes
             </Button>
@@ -688,24 +667,24 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       )}
 
       {isViewingNote && selectedNote && !isEditingNote && (
-         <Card className="shadow-lg">
+         <Card className="shadow-neo-lg">
           <CardHeader>
             <div className="flex justify-between items-center">
-                <CardTitle className="text-xl font-semibold">{selectedNote.sourceName}</CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => {setIsViewingNote(false); setSelectedNote(null);}} aria-label="Close note view and return to list/generation">
+                <CardTitle className="text-xl font-bold">{selectedNote.sourceName}</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => {setIsViewingNote(false); setSelectedNote(null);}} aria-label="Close note view and return to list/generation" className="shadow-none active:shadow-none"> {/* Smaller close button */}
                     Close View
                 </Button>
             </div>
             <CardDescription>Created: {new Date(selectedNote.createdAt).toLocaleString()} | Updated: {new Date(selectedNote.updatedAt).toLocaleString()}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div ref={notesOutputRef} className="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none p-4 bg-muted/30 rounded-md overflow-x-auto border border-border">
+            <div ref={notesOutputRef} className="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none p-4 bg-muted/30 rounded-none overflow-x-auto border-2 border-border shadow-neo-sm">
                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={markdownComponents}>
                     {selectedNote.content}
                 </ReactMarkdown>
             </div>
           </CardContent>
-          <CardFooter className="flex-wrap gap-2 justify-end">
+          <CardFooter className="flex-wrap gap-2 justify-end pt-4">
              <Button onClick={() => editNote(selectedNote)} variant="outline" aria-label={`Edit note ${selectedNote.sourceName || 'this note'}`}>
               <Edit className="mr-2 h-4 w-4" /> Edit
             </Button>
@@ -723,17 +702,17 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       )}
 
       {!isViewingNote && !isEditingNote && !generatedNotesContent && storedNotes.length > 0 && (
-        <Card className="shadow-md">
+        <Card className="shadow-neo-md">
           <CardHeader>
-            <CardTitle className="text-xl font-semibold">Saved Notes for "{subjectName}" ({storedNotes.length})</CardTitle>
+            <CardTitle className="text-xl font-bold">Saved Notes for "{subjectName}" ({storedNotes.length})</CardTitle>
             <CardDescription>Select a note to view, edit, or delete.</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
               {storedNotes.map(note => (
-                <li key={note.id} className="p-4 border rounded-md hover:shadow-md transition-shadow flex justify-between items-center">
+                <li key={note.id} className="p-4 border-2 border-border rounded-none hover:shadow-neo-md transition-shadow flex justify-between items-center bg-card shadow-neo-sm">
                   <div>
-                    <h3 className="font-medium">{note.sourceName || "Untitled Note"}</h3>
+                    <h3 className="font-bold">{note.sourceName || "Untitled Note"}</h3>
                     <p className="text-xs text-muted-foreground">
                       Created: {new Date(note.createdAt).toLocaleDateString()} | Updated: {new Date(note.updatedAt).toLocaleDateString()}
                     </p>
@@ -751,9 +730,9 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
                                 <Trash2 className="mr-1 h-4 w-4" /> Delete
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="shadow-neo-lg border-3 rounded-none"> {/* Neobrutalist Dialog */}
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Note: {note.sourceName || "Untitled Note"}?</AlertDialogTitle>
+                            <AlertDialogTitle className="font-bold">Delete Note: {note.sourceName || "Untitled Note"}?</AlertDialogTitle>
                             <AlertDialogDescription>
                             This action cannot be undone. This will permanently delete this note.
                             </AlertDialogDescription>
@@ -772,7 +751,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
         </Card>
       )}
        {!isGeneratingNotes && !isViewingNote && !isEditingNote && !generatedNotesContent && storedNotes.length === 0 && (
-            <Card>
+            <Card className="shadow-neo-md">
                 <CardContent className="p-6 text-center">
                     <p className="text-muted-foreground">No notes found for "{subjectName}". Generate new notes above or check other subjects.</p>
                 </CardContent>

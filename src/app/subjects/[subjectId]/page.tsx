@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, BookOpen, ListChecks, ClipboardEdit, AlertTriangle, FolderOpen } from 'lucide-react';
-import type { Subject, StoredNote, StoredQuiz, StoredExamAttempt } from '@/lib/actions';
+import type { Subject } from '@/lib/actions'; // Removed StoredNote, StoredQuiz, StoredExamAttempt as they are managed by child components
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import NotesManager from './_components/NotesManager';
 import QuizzesManager from './_components/QuizzesManager';
@@ -29,7 +29,7 @@ export default function SubjectPage() {
 
   useEffect(() => {
     if (!subjectId) {
-      router.push('/'); // Redirect if no subjectId
+      router.push('/'); 
       return;
     }
     setIsLoading(true);
@@ -68,7 +68,7 @@ export default function SubjectPage() {
 
   if (!subject) {
     return (
-      <Card className="shadow-lg">
+      <Card className="shadow-neo-lg"> {/* Applied shadow */}
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Subject Not Found</CardTitle>
         </CardHeader>
@@ -85,7 +85,7 @@ export default function SubjectPage() {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-lg">
+      <Card className="shadow-neo-lg"> {/* Applied shadow */}
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -103,14 +103,14 @@ export default function SubjectPage() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="notes" aria-controls="notes-panel">
+        <TabsList className="grid w-full grid-cols-3 bg-card border-2 border-border shadow-neo-sm"> {/* Neobrutalist TabsList */}
+          <TabsTrigger value="notes" aria-controls="notes-panel" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-neo-sm rounded-sm">
             <BookOpen className="mr-2 h-4 w-4" /> Notes
           </TabsTrigger>
-          <TabsTrigger value="quizzes" aria-controls="quizzes-panel">
+          <TabsTrigger value="quizzes" aria-controls="quizzes-panel" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-neo-sm rounded-sm">
             <ListChecks className="mr-2 h-4 w-4" /> Quizzes
           </TabsTrigger>
-          <TabsTrigger value="exams" aria-controls="exams-panel">
+          <TabsTrigger value="exams" aria-controls="exams-panel" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-neo-sm rounded-sm">
             <ClipboardEdit className="mr-2 h-4 w-4" /> Exams
           </TabsTrigger>
         </TabsList>

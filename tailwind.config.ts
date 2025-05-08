@@ -11,7 +11,7 @@ export default {
   theme: {
   	extend: {
       fontFamily: {
-        sans: ['var(--font-geist-sans)', ...defaultTheme.fontFamily.sans],
+        mono: ['var(--font-jetbrains-mono)', ...defaultTheme.fontFamily.mono], // Changed to mono and JetBrains Mono
       },
   		colors: {
   			background: 'hsl(var(--background))',
@@ -65,11 +65,26 @@ export default {
   				ring: 'hsl(var(--sidebar-ring))'
   			}
   		},
-  		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  		borderRadius: { // Neobrutalism often uses sharper corners, or slightly rounded
+  			lg: '0.375rem', // Slightly less rounded than default 0.5rem
+  			md: '0.25rem',
+  			sm: '0.125rem',
+        none: '0rem',
   		},
+      borderWidth: {
+        DEFAULT: '1px',
+        '0': '0',
+        '2': '2px',
+        '3': '3px', // For Neobrutalist borders
+        '4': '4px',
+      },
+      boxShadow: { // Custom Neobrutalist shadows
+        'neo-sm': '2px 2px 0px hsl(var(--border))',
+        'neo-md': '4px 4px 0px hsl(var(--border))',
+        'neo-lg': '6px 6px 0px hsl(var(--border))',
+        'neo-xl': '8px 8px 0px hsl(var(--border))',
+        'neo-none': 'none',
+      },
   		keyframes: {
   			'accordion-down': {
   				from: {
@@ -95,38 +110,28 @@ export default {
       typography: ({ theme }: { theme: any }) => ({
         DEFAULT: {
           css: {
-            '--tw-prose-body': theme('colors.foreground / 1'),
-            '--tw-prose-headings': theme('colors.foreground / 1'),
-            '--tw-prose-lead': theme('colors.foreground / 1'),
-            '--tw-prose-links': theme('colors.primary / 1'),
-            '--tw-prose-bold': theme('colors.foreground / 1'),
-            '--tw-prose-counters': theme('colors.muted-foreground / 1'),
-            '--tw-prose-bullets': theme('colors.muted-foreground / 1'),
-            '--tw-prose-hr': theme('colors.border / 1'),
-            '--tw-prose-quotes': theme('colors.foreground / 1'),
-            '--tw-prose-quote-borders': theme('colors.primary / 1'),
-            '--tw-prose-captions': theme('colors.muted-foreground / 1'),
-            '--tw-prose-code': theme('colors.foreground / 1'),
-            '--tw-prose-pre-code': theme('colors.primary-foreground / 1'),
-            '--tw-prose-pre-bg': theme('colors.primary / 1'),
-            '--tw-prose-th-borders': theme('colors.border / 1'),
-            '--tw-prose-td-borders': theme('colors.border / 1'),
-            '--tw-prose-invert-body': theme('colors.foreground / 1'),
-            '--tw-prose-invert-headings': theme('colors.foreground / 1'),
-            '--tw-prose-invert-lead': theme('colors.foreground / 1'),
-            '--tw-prose-invert-links': theme('colors.primary / 1'),
-            '--tw-prose-invert-bold': theme('colors.foreground / 1'),
-            '--tw-prose-invert-counters': theme('colors.muted-foreground / 1'),
-            '--tw-prose-invert-bullets': theme('colors.muted-foreground / 1'),
-            '--tw-prose-invert-hr': theme('colors.border / 1'),
-            '--tw-prose-invert-quotes': theme('colors.foreground / 1'),
-            '--tw-prose-invert-quote-borders': theme('colors.primary / 1'),
-            '--tw-prose-invert-captions': theme('colors.muted-foreground / 1'),
-            '--tw-prose-invert-code': theme('colors.foreground / 1'),
-            '--tw-prose-invert-pre-code': theme('colors.secondary-foreground / 1'), // Adjusted for dark mode pre
-            '--tw-prose-invert-pre-bg': theme('colors.secondary / 1'), // Adjusted for dark mode pre
-            '--tw-prose-invert-th-borders': theme('colors.border / 1'),
-            '--tw-prose-invert-td-borders': theme('colors.border / 1'),
+            '--tw-prose-body': 'hsl(var(--foreground))',
+            '--tw-prose-headings': 'hsl(var(--foreground))',
+            '--tw-prose-lead': 'hsl(var(--foreground))',
+            '--tw-prose-links': 'hsl(var(--primary))',
+            '--tw-prose-bold': 'hsl(var(--foreground))',
+            '--tw-prose-counters': 'hsl(var(--muted-foreground))',
+            '--tw-prose-bullets': 'hsl(var(--muted-foreground))',
+            '--tw-prose-hr': 'hsl(var(--border))',
+            '--tw-prose-quotes': 'hsl(var(--foreground))',
+            '--tw-prose-quote-borders': 'hsl(var(--primary))',
+            '--tw-prose-captions': 'hsl(var(--muted-foreground))',
+            '--tw-prose-code': 'hsl(var(--foreground))',
+            '--tw-prose-pre-code': 'hsl(var(--primary-foreground))',
+            '--tw-prose-pre-bg': 'hsl(var(--primary))', // Or a dark neutral
+            '--tw-prose-th-borders': 'hsl(var(--border))',
+            '--tw-prose-td-borders': 'hsl(var(--border))',
+            // Dark mode prose can be adjusted via the .dark class in globals.css if needed
+            '--tw-prose-invert-body': 'hsl(var(--foreground))', // In dark mode, foreground is light
+            '--tw-prose-invert-headings': 'hsl(var(--foreground))',
+            '--tw-prose-invert-links': 'hsl(var(--primary))',
+             '--tw-prose-invert-pre-code': 'hsl(var(--card-foreground))', 
+            '--tw-prose-invert-pre-bg': 'hsl(var(--card))',
           },
         },
       }),
@@ -137,4 +142,3 @@ export default {
     require('@tailwindcss/typography'),
   ],
 } satisfies Config;
-

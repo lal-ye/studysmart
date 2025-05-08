@@ -1,18 +1,21 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart as BarChartIcon, TrendingUp, TrendingDown, AlertTriangle, Activity } from 'lucide-react'; // Removed PieChartIcon and LineChartIcon as they are not directly used as page icons
+import { BarChart as BarChartIcon, TrendingUp, TrendingDown, AlertTriangle, Activity, Eye } from 'lucide-react'; // Added Eye
 import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, LineChart as RechartsLineChart, Line as RechartsLine, Bar as RechartsBar } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import type { AnalyticsSummary, DatedScore, TopicPerformance, QuizScoreDistributionItem, StoredExamAttempt } from '@/lib/actions'; // ExamResult no longer needed directly here
+import type { AnalyticsSummary, DatedScore, TopicPerformance, QuizScoreDistributionItem, StoredExamAttempt } from '@/lib/actions'; 
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
 import type { ToastProps } from '@/components/ui/toast';
-
+import { Button } from '@/components/ui/button'; // Added Button import
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; // Added AlertDialog
+import { Trash2 } from 'lucide-react'; // Added Trash2
 
 const overallProgressChartConfig = {
   score: {
@@ -34,6 +37,8 @@ interface ToastArgsForPage {
   variant?: ToastProps['variant'];
 }
 
+const EXAMS_HISTORY_KEY = 'studySmartsExamHistory'; // Key for storing/retrieving exam history
+
 
 export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary | null>(null);
@@ -49,24 +54,24 @@ export default function AnalyticsPage() {
     }
   }, [toastArgs, toast]);
 
-  useEffect(() => {
-    setIsLoading(true);
+  const loadAnalyticsData = () => {
+     setIsLoading(true);
     try {
-      const historyString = localStorage.getItem('studySmartsExamHistory');
+      const historyString = localStorage.getItem(EXAMS_HISTORY_KEY);
       const loadedAttempts: StoredExamAttempt[] = historyString ? JSON.parse(historyString) : [];
-      setStoredExamAttempts(loadedAttempts); // Store all attempts for detailed view
+      setStoredExamAttempts(loadedAttempts.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())); // Store sorted attempts
 
       if (loadedAttempts.length > 0) {
         const overallScores: DatedScore[] = loadedAttempts.map(attempt => ({
-          name: `${attempt.subjectName} - ${attempt.name}`, // Combine subject and exam name
+          name: `${attempt.subjectName}: ${attempt.name}`, 
           score: attempt.overallScore,
-          date: attempt.date,
+          date: attempt.date, // Use the date string directly
           type: 'Exam',
         })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         let totalScoreSum = 0;
-        overallScores.forEach(s => totalScoreSum += s.score);
-        const overallAverageScore = overallScores.length > 0 ? totalScoreSum / overallScores.length : 0;
+        loadedAttempts.forEach(attempt => totalScoreSum += attempt.overallScore); // Sum up scores from all attempts
+        const overallAverageScore = loadedAttempts.length > 0 ? totalScoreSum / loadedAttempts.length : 0;
 
         const topicPerformanceMap = new Map<string, { correct: number; total: number }>();
         loadedAttempts.forEach(attempt => {
@@ -85,16 +90,15 @@ export default function AnalyticsPage() {
           correct: data.correct,
           total: data.total,
           accuracy: data.total > 0 ? (data.correct / data.total) * 100 : 0,
-        })).sort((a,b) => b.accuracy - a.accuracy); // Sort by accuracy descending
+        })).sort((a,b) => b.accuracy - a.accuracy); 
 
         const areasForImprovement = [...topicPerformance]
-          .filter(topic => topic.accuracy < 100) // Only include if not perfect
-          .sort((a, b) => a.accuracy - b.accuracy) // Sort by accuracy ascending (worst first)
-          .slice(0, 5); // Top 5 areas
+          .filter(topic => topic.accuracy < 100) 
+          .sort((a, b) => a.accuracy - b.accuracy) 
+          .slice(0, 5); 
         
-        // Quiz analytics are not yet implemented with subjects, so these remain placeholder/empty
         const quizScoreDistribution: QuizScoreDistributionItem[] = []; 
-        const quizzesTaken = 0; 
+        const quizzesTaken = 0; // Placeholder
 
 
         setAnalyticsData({
@@ -107,7 +111,6 @@ export default function AnalyticsPage() {
           quizScoreDistribution, 
         });
       } else {
-        // No attempts, set to default empty state
         setAnalyticsData({
             overallAverageScore: 0,
             quizzesTaken: 0,
@@ -125,11 +128,30 @@ export default function AnalyticsPage() {
         description: (error as Error).message || "Could not load analytics data from local storage.",
         variant: "destructive",
       });
-      setAnalyticsData(null); // Set to null to show error state
+      setAnalyticsData(null); 
     } finally {
         setIsLoading(false);
     }
-  }, [toast]); // Removed analyticsData from dependencies to avoid re-triggering on its own update.
+  };
+  
+  // Load data on initial mount
+  useEffect(() => {
+     loadAnalyticsData();
+  }, []); 
+
+
+  const handleDeleteExamAttempt = (attemptId: string) => {
+    const allHistoryString = localStorage.getItem(EXAMS_HISTORY_KEY);
+    if (allHistoryString) {
+        const allHistory: StoredExamAttempt[] = JSON.parse(allHistoryString);
+        const updatedHistory = allHistory.filter(attempt => attempt.id !== attemptId);
+        localStorage.setItem(EXAMS_HISTORY_KEY, JSON.stringify(updatedHistory));
+        // Reload analytics data to reflect the deletion
+        loadAnalyticsData(); 
+        setToastArgs({ title: "Exam Attempt Deleted", variant: "destructive"});
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -142,12 +164,12 @@ export default function AnalyticsPage() {
 
   if (!analyticsData) {
     return (
-      <Card className="shadow-lg">
+      <Card className="shadow-neo-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Analytics Dashboard</CardTitle>
         </CardHeader>
         <CardContent className="text-center py-10">
-          <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" aria-hidden="true" />
+          <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
           <p className="text-xl text-muted-foreground">No analytics data available or failed to load.</p>
           <p className="text-sm text-muted-foreground mt-2">Please complete some exams to see your analytics.</p>
         </CardContent>
@@ -176,7 +198,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-lg">
+      <Card className="shadow-neo-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
             <BarChartIcon className="h-8 w-8 text-primary" aria-hidden="true" />
@@ -196,19 +218,19 @@ export default function AnalyticsPage() {
         <InfoCard title="Exams Taken" value={examsTaken.toString()} icon={<TrendingDown className="h-6 w-6 text-primary" aria-hidden="true"/>} />
       </div>
 
-      <Card className="shadow-md">
+      <Card className="shadow-neo-md">
         <CardHeader>
-          <CardTitle>Overall Exam Score Progress</CardTitle>
+          <CardTitle className="font-bold">Overall Exam Score Progress</CardTitle>
         </CardHeader>
-        <CardContent className="h-[350px]">
+        <CardContent className="h-[350px] bg-card p-4 border-2 border-border">
           {overallScoreProgress.length > 0 ? (
             <ChartContainer config={overallProgressChartConfig} className="w-full h-full">
               <RechartsLineChart data={overallScoreProgress} margin={{ top: 5, right: 20, left: -10, bottom: 5 }} aria-label="Line chart showing overall exam score progress over time">
-                <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
-                <YAxis domain={[0, 100]} unit="%" />
-                <Tooltip content={<ChartTooltipContent indicator="line" labelKey="name" />} />
+                <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} stroke="hsl(var(--foreground))"/>
+                <YAxis domain={[0, 100]} unit="%" stroke="hsl(var(--foreground))"/>
+                <Tooltip content={<ChartTooltipContent indicator="line" labelKey="name" />} cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 2, strokeDasharray: '3 3' }}/>
                 <Legend />
-                   <RechartsLine type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
+                   <RechartsLine type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={3} dot={{ r: 5, fill: "var(--color-score)", stroke: 'hsl(var(--border))', strokeWidth: 2 }} activeDot={{ r: 8 }} name="Score" />
               </RechartsLineChart>
             </ChartContainer>
           ) : (
@@ -217,20 +239,20 @@ export default function AnalyticsPage() {
         </CardContent>
       </Card>
       
-      <Card className="shadow-md">
+      <Card className="shadow-neo-md">
         <CardHeader>
-          <CardTitle>Topic Performance (Accuracy %)</CardTitle>
+          <CardTitle className="font-bold">Topic Performance (Accuracy %)</CardTitle>
           <CardDescription>Based on all completed exams.</CardDescription>
         </CardHeader>
-        <CardContent className="h-[350px]">
+        <CardContent className="h-[350px] bg-card p-4 border-2 border-border">
          {topicPerformance.length > 0 ? (
             <ChartContainer config={topicPerformanceChartConfig} className="w-full h-full">
-              <RechartsBarChart data={topicPerformance} layout="vertical" margin={{ right: 30 }} aria-label="Bar chart showing accuracy percentage per topic">
-                <XAxis type="number" domain={[0, 100]} unit="%" />
-                <YAxis dataKey="topic" type="category" width={120} tickLine={false} axisLine={false}/>
-                <Tooltip content={<ChartTooltipContent indicator="dot" />} />
+              <RechartsBarChart data={topicPerformance} layout="vertical" margin={{ right: 30, left: 10 }} aria-label="Bar chart showing accuracy percentage per topic">
+                <XAxis type="number" domain={[0, 100]} unit="%" stroke="hsl(var(--foreground))"/>
+                <YAxis dataKey="topic" type="category" width={120} tickLine={false} axisLine={false} stroke="hsl(var(--foreground))"/>
+                <Tooltip content={<ChartTooltipContent indicator="dot" />} cursor={{ fill: 'hsl(var(--muted)/0.3)' }}/>
                 <Legend />
-                   <RechartsBar dataKey="accuracy" fill="var(--color-accuracy)" radius={4} name="Accuracy" />
+                   <RechartsBar dataKey="accuracy" fill="var(--color-accuracy)" radius={[0, 4, 4, 0]} name="Accuracy" barSize={20}/> {/* Adjusted radius for Neo look */}
               </RechartsBarChart>
             </ChartContainer>
          ) : (
@@ -240,17 +262,17 @@ export default function AnalyticsPage() {
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="shadow-md">
+        <Card className="shadow-neo-md">
           <CardHeader>
-            <CardTitle>Quiz Score Distribution</CardTitle>
+            <CardTitle className="font-bold">Quiz Score Distribution</CardTitle>
             <CardDescription>Feature coming soon (Quizzes are not yet integrated with subject-based analytics).</CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px]">
+          <CardContent className="h-[300px] bg-card p-4 border-2 border-border flex items-center justify-center">
             {quizScoreDistribution.length > 0 ? (
               <ChartContainer config={{}} className="w-full h-full">
                   <RechartsPieChart aria-label="Pie chart showing quiz score distribution">
                       <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
-                      <Pie data={quizScoreDistribution} dataKey="score" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                      <Pie data={quizScoreDistribution} dataKey="score" nameKey="name" cx="50%" cy="50%" outerRadius={100} label stroke="hsl(var(--border))" strokeWidth={2}>
                           {quizScoreDistribution.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
                           ))}
@@ -264,35 +286,35 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-md">
+        <Card className="shadow-neo-md">
           <CardHeader>
-            <CardTitle>Areas for Improvement</CardTitle>
+            <CardTitle className="font-bold">Areas for Improvement</CardTitle>
             <CardDescription>Top topics with the lowest accuracy based on exam performance.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="bg-card p-4 border-2 border-border">
             {areasForImprovement.length > 0 ? (
               <ul className="space-y-2">
                 {areasForImprovement.map(item => (
-                    <li key={item.topic} className="flex justify-between items-center p-3 bg-muted/50 rounded-md shadow-sm">
+                    <li key={item.topic} className="flex justify-between items-center p-3 bg-muted/50 rounded-none border-2 border-border shadow-neo-sm">
                       <div>
-                        <span className="font-medium">{item.topic}</span>
+                        <span className="font-bold">{item.topic}</span>
                         <p className="text-xs text-muted-foreground">
                           {item.correct} / {item.total} correct
                         </p>
                       </div>
                       <span className={cn(
-                        "font-semibold",
+                        "font-bold text-lg", // Made score bigger and bolder
                         item.accuracy < 50 ? 'text-destructive' : 
-                        item.accuracy < 75 ? 'text-yellow-500 dark:text-yellow-400' : 
-                        'text-green-500 dark:text-green-400'
+                        item.accuracy < 75 ? 'text-yellow-600 dark:text-yellow-400' : 
+                        'text-green-600 dark:text-green-400'
                       )}>
-                        {item.accuracy.toFixed(1)}%
+                        {item.accuracy.toFixed(0)}%
                       </span>
                     </li>
                 ))}
               </ul>
             ) : (
-              examsTaken > 0 ? ( // Only show "Great job" if exams have been taken
+              examsTaken > 0 ? ( 
                 <p className="text-center text-green-600 font-semibold py-10">Great job! No specific areas for improvement based on current exam data.</p>
               ) : (
                 <p className="text-center text-muted-foreground py-10">Complete an exam to identify areas for improvement.</p>
@@ -303,44 +325,63 @@ export default function AnalyticsPage() {
         </Card>
       </div>
         {storedExamAttempts.length > 0 && (
-            <Card className="shadow-md">
+            <Card className="shadow-neo-lg">
                 <CardHeader>
-                    <CardTitle>Previous Exam Attempts</CardTitle>
+                    <CardTitle className="font-bold">Previous Exam Attempts</CardTitle>
                     <CardDescription>Review detailed results from your past exams across all subjects.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <Accordion type="single" collapsible className="w-full" aria-label="Previous Exam Attempts">
-                        {storedExamAttempts.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((attempt) => ( 
-                            <AccordionItem value={attempt.id} key={attempt.id}>
-                                <AccordionTrigger className="text-left hover:no-underline">
+                <CardContent className="p-0"> {/* Remove padding for full-width accordion */}
+                    <Accordion type="single" collapsible className="w-full border-2 border-border shadow-neo-md">
+                        {storedExamAttempts.map((attempt) => ( 
+                            <AccordionItem value={attempt.id} key={attempt.id} className="border-b-2 border-border last:border-b-0">
+                                <AccordionTrigger className="text-left hover:underline px-4 py-3">
                                     <div className="flex items-center justify-between w-full">
-                                        <span>{attempt.subjectName}: {attempt.name} - {new Date(attempt.date).toLocaleDateString()}</span>
-                                        <Badge variant={attempt.overallScore >= 70 ? "default" : attempt.overallScore >=50 ? "secondary" : "destructive"}>
-                                            Score: {attempt.overallScore.toFixed(1)}%
+                                        <span className="font-bold">{attempt.subjectName}: {attempt.name} - {new Date(attempt.date).toLocaleDateString()}</span>
+                                        <Badge variant={attempt.overallScore >= 70 ? "default" : attempt.overallScore >=50 ? "secondary" : "destructive"} className="border-2 border-border shadow-neo-sm">
+                                            Score: {attempt.overallScore.toFixed(0)}%
                                         </Badge>
                                     </div>
                                 </AccordionTrigger>
-                                <AccordionContent className="text-sm space-y-4">
+                                <AccordionContent className="text-sm space-y-4 px-4 pb-4 bg-muted/30">
                                     <p><strong>Overall Score:</strong> {attempt.overallScore.toFixed(1)}% ({attempt.examResults.filter(r => r.isCorrect).length} / {attempt.examQuestions.length})</p>
                                     {attempt.topicsToReview.length > 0 && (
                                         <div>
-                                            <h4 className="font-semibold mb-1">Topics to Review:</h4>
+                                            <h4 className="font-bold mb-1">Topics to Review:</h4>
                                             <div className="flex flex-wrap gap-1">
-                                                {attempt.topicsToReview.map(topic => <Badge key={topic} variant="outline">{topic}</Badge>)}
+                                                {attempt.topicsToReview.map(topic => <Badge key={topic} variant="outline" className="border-2 border-border shadow-neo-sm">{topic}</Badge>)}
                                             </div>
                                         </div>
                                     )}
-                                    <h4 className="font-semibold mt-3">Detailed Results:</h4>
+                                    <div className="flex justify-end pt-2">
+                                         <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="destructive" size="sm" aria-label={`Delete exam attempt ${attempt.name}`}>
+                                                    <Trash2 className="mr-1 h-4 w-4" /> Delete Attempt
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent className="shadow-neo-lg border-3 rounded-none">
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle className="font-bold">Delete Exam Attempt: {attempt.name}?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete this exam attempt record. This action cannot be undone.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteExamAttempt(attempt.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                    <h4 className="font-bold mt-3">Detailed Results:</h4>
                                     <ul className="space-y-3">
                                         {attempt.examQuestions.map((question, i) => {
                                             const result = attempt.examResults[i];
                                             return (
-                                                <li key={question.question + i} className="p-3 border rounded-md bg-muted/30">
-                                                    <p className="font-medium">Q{i+1}: {question.question}</p>
+                                                <li key={question.question + i} className="p-3 border-2 border-border rounded-none bg-card shadow-neo-sm">
+                                                    <p className="font-bold">Q{i+1}: {question.question}</p>
                                                     <p className="text-xs text-muted-foreground">Topic: {question.topic} | Type: {question.type.replace('_', ' ')}</p>
                                                     <p><strong>Your Answer:</strong> {result.userAnswer || <span className="italic text-muted-foreground">Not answered</span>}</p>
                                                     {!result.isCorrect && <p><strong>Correct Answer:</strong> {question.correctAnswer}</p>}
-                                                     <Badge variant={result.isCorrect ? "default" : "destructive"} className={cn(result.isCorrect ? "bg-green-500 hover:bg-green-600" : "")}>
+                                                     <Badge variant={result.isCorrect ? "default" : "destructive"} className={cn("border-2 border-border shadow-neo-sm mt-1", result.isCorrect ? "bg-green-500 hover:bg-green-600" : "")}>
                                                         {result.isCorrect ? "Correct" : "Incorrect"}
                                                     </Badge>
                                                 </li>
@@ -368,9 +409,9 @@ interface InfoCardProps {
 
 function InfoCard({ title, value, icon, description }: InfoCardProps) {
   return (
-    <Card className="shadow-md hover:shadow-lg transition-shadow">
+    <Card className="shadow-neo-md hover:shadow-neo-lg transition-all duration-150 ease-out hover:-translate-x-0.5 hover:-translate-y-0.5"> {/* Added hover effect */}
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-sm font-bold">{title}</CardTitle> {/* Font bold */}
         {icon}
       </CardHeader>
       <CardContent>
