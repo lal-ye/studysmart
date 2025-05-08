@@ -40,14 +40,13 @@ export default function NeobrutalistButton({
 
   if (href) {
     return (
-      <Link href={href} passHref>
-        <a
-          className={`${baseClasses} ${className}`}
-          role="button"
-          aria-label={ariaLabel || (typeof children === 'string' ? children : 'navigation link')}
-        >
-          {children}
-        </a>
+      <Link
+        href={href}
+        className={`${baseClasses} ${className}`}
+        role="button"
+        aria-label={ariaLabel || (typeof children === 'string' ? children : 'navigation link')}
+      >
+        {children}
       </Link>
     );
   }
