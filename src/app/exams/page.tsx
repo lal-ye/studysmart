@@ -93,7 +93,7 @@ export default function ExamsPage() {
             <div>
               <CardTitle className="text-2xl font-bold">Exam Generation & Analysis</CardTitle>
               <CardDescription>
-                Generate a 70-question exam, get it graded, and receive a personalized study plan.
+                Generate a 70-question exam from your course material (e.g., .txt, .pdf file or paste text), get it graded, and receive a personalized study plan.
               </CardDescription>
             </div>
           </div>

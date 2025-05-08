@@ -69,7 +69,7 @@ export default function QuizzesPage() {
             <div>
               <CardTitle className="text-2xl font-bold">Quiz Generation</CardTitle>
               <CardDescription>
-                Generate quizzes from your course material to test your understanding.
+                Generate quizzes from your course material (e.g., .txt, .pdf file or paste text) to test your understanding.
               </CardDescription>
             </div>
           </div>

@@ -58,7 +58,7 @@ export default function NotesPage() {
             <div>
               <CardTitle className="text-2xl font-bold">Dynamic Note Generation</CardTitle>
               <CardDescription>
-                Input your course material (text or .txt file) to generate dynamic and interactive notes.
+                Input your course material (e.g., .txt, .pdf file or paste text) to generate dynamic and interactive notes.
               </CardDescription>
             </div>
           </div>
