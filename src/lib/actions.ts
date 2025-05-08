@@ -1,7 +1,7 @@
 'use server';
 
 import { generateDynamicNotes as generateDynamicNotesFlow, type GenerateDynamicNotesInput } from '@/ai/flows/generate-dynamic-notes';
-import { generateQuiz as generateQuizFlow, type GenerateQuizInput } from '@/ai/flows/generate-quiz';
+import { generateQuiz, type GenerateQuizInput } from '@/ai/flows/generate-quiz'; // Updated import
 import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput, type GenerateExamAndAnalyzeOutput } from '@/ai/flows/generate-exam-and-analyze';
 import { generateExtraReadings as generateExtraReadingsFlow, type GenerateExtraReadingsInput, type GenerateExtraReadingsOutput } from '@/ai/flows/generate-extra-readings';
 import { extractTextFromPdf as extractTextFromPdfFlow, type ExtractTextFromPdfInput, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
@@ -24,7 +24,10 @@ export async function generateNotesAction(
     return result.notes;
   } catch (error) {
     console.error('Error in generateNotesAction:', error);
-    throw new Error('Failed to generate notes. Please try again.');
+    if (error instanceof Error) {
+      throw new Error(`Failed to generate notes: ${error.message}. Please try again.`);
+    }
+    throw new Error('Failed to generate notes due to an unknown error. Please try again.');
   }
 }
 
@@ -32,11 +35,22 @@ export async function generateQuizAction(
   input: GenerateQuizInput
 ): Promise<string> {
   try {
-    const result = await generateQuizFlow(input);
+    // Call the exported wrapper function `generateQuiz`
+    const result = await generateQuiz(input); 
+
+    // Check if the returned quiz string is empty or only whitespace
+    if (!result.quiz || result.quiz.trim() === "") {
+        console.warn('[StudySmarts Debug - generateQuizAction] AI returned an empty quiz.');
+        throw new Error("The AI model returned an empty quiz. Please try again with different material or adjust quiz length.");
+    }
     return result.quiz;
   } catch (error) {
-    console.error('Error in generateQuizAction:', error);
-    throw new Error('Failed to generate quiz. Please try again.');
+    console.error('[StudySmarts Debug - generateQuizAction] Error generating quiz:', error);
+    if (error instanceof Error) {
+      // Propagate the specific error message from the flow or wrapper
+      throw new Error(error.message); 
+    }
+    throw new Error('Failed to generate quiz due to an unknown server error. Please try again.');
   }
 }
 
@@ -49,7 +63,10 @@ export async function generateAndAnalyzeExamAction(
     return result;
   } catch (error) {
     console.error('Error in generateAndAnalyzeExamAction:', error);
-    throw new Error('Failed to generate and analyze exam. Please try again.');
+    if (error instanceof Error) {
+      throw new Error(`Failed to generate and analyze exam: ${error.message}. Please try again.`);
+    }
+    throw new Error('Failed to generate and analyze exam due to an unknown error. Please try again.');
   }
 }
 
@@ -62,7 +79,10 @@ export async function getExtraReadingsAction(
   } catch (error)
     {
     console.error('Error in getExtraReadingsAction:', error);
-    throw new Error('Failed to fetch extra readings. Please try again.');
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch extra readings: ${error.message}. Please try again.`);
+    }
+    throw new Error('Failed to fetch extra readings due to an unknown error. Please try again.');
   }
 }
 
@@ -79,4 +99,3 @@ export async function extractTextFromPdfAction(
     throw new Error(`Failed to extract text from PDF: ${message}`);
   }
 }
-
