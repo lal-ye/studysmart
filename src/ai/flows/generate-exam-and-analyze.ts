@@ -28,9 +28,10 @@ const GenerateExamAndAnalyzeInputSchema = z.object({
     .describe('The course material in PDF or text format.'),
   numberOfQuestions: z
     .number()
-    .default(30) // Default to 30 questions
+    .default(30) 
     .describe('The desired number of questions in the exam. Should be 30 for the standard exam format.'),
-  userAnswers: z.array(z.string()).optional().describe('Optional user answers for grading. If not provided, answers will be mocked. The order must match the exam questions.')
+  userAnswers: z.array(z.string()).optional().describe('Optional user answers for grading. If not provided, only exam generation occurs. The order must match the exam questions.'),
+  exam: z.array(ExamQuestionSchema).optional().describe('The original exam questions. Required if userAnswers are provided for grading, otherwise questions will be generated.')
 });
 
 export type GenerateExamAndAnalyzeInput = z.infer<
@@ -49,14 +50,14 @@ const ExamResultSchema = z.object({
 export type ExamResult = z.infer<typeof ExamResultSchema>;
 
 const GenerateExamAndAnalyzeOutputSchema = z.object({
-  exam: z.array(ExamQuestionSchema).describe('The generated exam.'),
-  results: z.array(ExamResultSchema).describe('The graded exam results.'),
+  exam: z.array(ExamQuestionSchema).describe('The generated exam (or the exam that was graded).'),
+  results: z.array(ExamResultSchema).describe('The graded exam results. Empty if only generation was performed.'),
   topicsToReview: z
     .array(z.string())
-    .describe('The topics the user needs to review.'),
+    .describe('The topics the user needs to review. Empty if only generation was performed.'),
   extraReadings: z
     .array(z.object({title: z.string(), url: z.string()}))
-    .describe('Links and articles for extra readings.'),
+    .describe('Links and articles for extra readings. Empty if only generation was performed.'),
 });
 
 export type GenerateExamAndAnalyzeOutput = z.infer<
@@ -67,14 +68,15 @@ export async function generateExamAndAnalyze(
   input: GenerateExamAndAnalyzeInput
 ): Promise<GenerateExamAndAnalyzeOutput> {
   // Ensure numberOfQuestions is 30 if not specified for this specific flow's logic.
+  // This default is mostly for the generation phase.
   const validatedInput = { ...input, numberOfQuestions: input.numberOfQuestions || 30 };
   return generateExamAndAnalyzeFlow(validatedInput);
 }
 
 const generateExamPrompt = ai.definePrompt({
   name: 'generateExamPrompt',
-  input: {schema: GenerateExamAndAnalyzeInputSchema}, // Will only use courseMaterial and numberOfQuestions
-  output: {schema: z.object({ exam: z.array(ExamQuestionSchema) }) }, // Expecting an object with an 'exam' key
+  input: {schema: GenerateExamAndAnalyzeInputSchema}, // Will only use courseMaterial and numberOfQuestions from this schema
+  output: {schema: z.object({ exam: z.array(ExamQuestionSchema) }) }, 
   prompt: `You are an expert in education and creating effective exams.
 Based on the provided course material, generate an exam.
 The exam should have exactly {{{numberOfQuestions}}} questions, structured precisely as follows:
@@ -84,7 +86,7 @@ The exam should have exactly {{{numberOfQuestions}}} questions, structured preci
 
 For ALL questions, you MUST include:
 - 'question': The text of the question (string).
-- 'type': One of 'multiple_choice', 'true_false', or 'short_answer' (string enum).
+- 'type': One of 'multiple_choice', 'true_false', 'short_answer' (string enum).
 - 'options': An array of 4 strings for 'multiple_choice' questions. This field MUST be present and contain 4 strings for multiple_choice type. For 'true_false' and 'short_answer' questions, this field should be omitted or explicitly null.
 - 'correctAnswer': The correct answer (string). For true/false, this should be 'true' or 'false'.
 - 'topic': The topic from the course material that the question is related to (string).
@@ -100,14 +102,18 @@ Course Material:
 const gradeExamPrompt = ai.definePrompt({
   name: 'gradeExamPrompt',
   input: {schema: z.object({
-    examString: z.string().describe('The exam questions as a JSON string.'),
+    examString: z.string().describe('The exam questions as a JSON string. Each question object includes its type, correctAnswer, and topic.'),
     userAnswersString: z.string().describe('The user answers as a JSON string, in corresponding order to exam questions.'),
   })},
-  output: {schema: z.object({ results: z.array(ExamResultSchema) }) }, // Expecting an object with a 'results' key
+  output: {schema: z.object({ results: z.array(ExamResultSchema) }) }, 
   prompt: `You are an expert in grading exams.
 Based on the provided exam questions (including their types, correct answers, and topics) and the user's answers, grade the exam.
 The exam questions and user answers are provided as JSON strings.
+
 For each question, determine if the user's answer is correct.
+- For 'multiple_choice' and 'true_false' questions, correctness is a direct match with the provided 'correctAnswer'.
+- For 'short_answer' questions, evaluate if the user's answer demonstrates understanding equivalent to the 'correctAnswer'. Be lenient with minor phrasing differences if the core concept is correct.
+
 Return a JSON object with a "results" key. The value of "results" should be an array of result objects. Each result object must include:
 - 'question': The original question text.
 - 'type': The type of the question ('multiple_choice', 'true_false', 'short_answer').
@@ -130,7 +136,7 @@ const analyzeResultsPrompt = ai.definePrompt({
   input: {schema: z.object({
     resultsString: z.string().describe('The exam results as a JSON string. Each result includes the question, user answer, correctness, and topic.'),
   })},
-  output: {schema: z.object({ topicsToReview: z.array(z.string()) }) }, // Expecting an object
+  output: {schema: z.object({ topicsToReview: z.array(z.string()) }) }, 
   prompt: `You are an expert in education and analyzing exam results.
 Based on the provided exam results (which include the question, user answer, correctness, and topic for each), identify the topics where the user made mistakes.
 The exam results are provided as a JSON string.
@@ -150,39 +156,78 @@ const generateExamAndAnalyzeFlow = ai.defineFlow(
     outputSchema: GenerateExamAndAnalyzeOutputSchema,
   },
   async (input: GenerateExamAndAnalyzeInput) => {
-    const examGenerationResult = await generateExamPrompt({ courseMaterial: input.courseMaterial, numberOfQuestions: input.numberOfQuestions });
-    if (!examGenerationResult.output || !examGenerationResult.output.exam) {
-        throw new Error('Failed to generate exam questions from the model.');
-    }
-    const examQuestions = examGenerationResult.output.exam;
+    let examQuestions: ExamQuestion[];
 
-    // Use provided userAnswers if available, otherwise mock them for grading.
-    const userAnswersToGrade = input.userAnswers && input.userAnswers.length === examQuestions.length 
-      ? input.userAnswers
-      : examQuestions.map((question, index) => {
-          if (question.type === 'multiple_choice' && question.options && question.options.length > 0) {
-            return question.options[index % question.options.length];
-          }
-          if (question.type === 'true_false') {
-            return (index % 2 === 0) ? 'true' : 'false';
-          }
-          return `Mocked short answer for question ${index + 1}`;
-        });
+    if (input.exam && input.userAnswers && input.exam.length > 0) {
+      // Grading an existing exam provided in the input
+      examQuestions = input.exam;
+    } else {
+      // Generating a new exam
+      const examGenerationResult = await generateExamPrompt({ 
+        courseMaterial: input.courseMaterial, 
+        numberOfQuestions: input.numberOfQuestions,
+        // userAnswers and exam are not relevant for this prompt call
+      });
+      if (!examGenerationResult.output || !examGenerationResult.output.exam) {
+          throw new Error('Failed to generate exam questions from the model.');
+      }
+      examQuestions = examGenerationResult.output.exam;
+    }
+
+    // If only exam generation was requested (no userAnswers), return early
+    if (!input.userAnswers || input.userAnswers.length === 0) {
+      return {
+        exam: examQuestions,
+        results: [], 
+        topicsToReview: [],
+        extraReadings: [],
+      };
+    }
+
+    // Proceed with grading
+    const userAnswersToGrade = input.userAnswers;
 
     const gradeExamInput = {
       examString: JSON.stringify(examQuestions),
       userAnswersString: JSON.stringify(userAnswersToGrade),
     };
 
-    const gradingResult = await gradeExamPrompt(gradeExamInput);
-    if (!gradingResult.output || !gradingResult.output.results) {
-        throw new Error('Failed to grade exam using the model.');
+    const llmGradingResult = await gradeExamPrompt(gradeExamInput);
+    if (!llmGradingResult.output || !llmGradingResult.output.results) {
+        throw new Error('Failed to get initial grading results from the model.');
     }
-    const examResults = gradingResult.output.results;
+    const preliminaryResults = llmGradingResult.output.results;
 
+    // Refine grading: Deterministic for MC/TF, use LLM's grade for Short Answer
+    const finalExamResults: ExamResult[] = examQuestions.map((question, index) => {
+      const userAnswer = userAnswersToGrade[index] || ""; // Ensure userAnswer is always a string
+      // Find the corresponding preliminary result from the LLM
+      // This assumes the LLM returns results in the same order or includes enough info to match.
+      // A more robust match would be on question text if order isn't guaranteed.
+      // For now, we assume order or rely on the LLM to match questions if it reorders.
+      const llmGradedResult = preliminaryResults.find(r => r.question === question.question && r.topic === question.topic);
+
+
+      let isCorrectDetermined: boolean;
+      if (question.type === 'multiple_choice' || question.type === 'true_false') {
+        isCorrectDetermined = userAnswer === question.correctAnswer;
+      } else { // short_answer
+        // For short answers, trust the LLM's judgment on correctness.
+        isCorrectDetermined = llmGradedResult ? llmGradedResult.isCorrect : false; 
+      }
+      
+      return {
+        question: question.question,
+        type: question.type,
+        correctAnswer: question.correctAnswer,
+        userAnswer: userAnswer,
+        isCorrect: isCorrectDetermined,
+        topic: question.topic,
+      };
+    });
 
     const analyzeResultsInput = {
-      resultsString: JSON.stringify(examResults), 
+      resultsString: JSON.stringify(finalExamResults), 
     };
 
     const analysisResult = await analyzeResultsPrompt(analyzeResultsInput);
@@ -191,18 +236,16 @@ const generateExamAndAnalyzeFlow = ai.defineFlow(
     }
     const topicsToReview = analysisResult.output.topicsToReview;
 
-    // Get extra readings for the topics to review
     const extraReadingsPromises = topicsToReview.map(topic => searchArticles(topic));
     const extraReadingsArrays = await Promise.all(extraReadingsPromises);
-    const extraReadings = extraReadingsArrays.flat();
+    const extraReadings = extraReadingsArrays.flat().filter(article => article.title !== "No Relevant Articles Found");
 
 
     return {
       exam: examQuestions,
-      results: examResults,
+      results: finalExamResults,
       topicsToReview: topicsToReview,
       extraReadings: extraReadings,
     };
   }
 );
-

@@ -3,7 +3,7 @@
 
 import { generateDynamicNotes as generateDynamicNotesFlow, type GenerateDynamicNotesInput } from '@/ai/flows/generate-dynamic-notes';
 import { generateQuiz, type GenerateQuizInput, type GenerateQuizOutput, type Flashcard } from '@/ai/flows/generate-quiz';
-import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput, type GenerateExamAndAnalyzeOutput, type ExamQuestion, type ExamResult } from '@/ai/flows/generate-exam-and-analyze';
+import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput as GenerateExamAndAnalyzeInputFlow, type GenerateExamAndAnalyzeOutput, type ExamQuestion, type ExamResult } from '@/ai/flows/generate-exam-and-analyze';
 import { generateExtraReadings as generateExtraReadingsFlow, type GenerateExtraReadingsInput, type GenerateExtraReadingsOutput } from '@/ai/flows/generate-extra-readings';
 import { extractTextFromPdf as extractTextFromPdfFlow, type ExtractTextFromPdfInput, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
 import { explainTerm as explainTermFlow, type ExplainTermInput, type ExplainTermOutput } from '@/ai/flows/explain-term-flow';
@@ -44,17 +44,13 @@ export async function generateQuizAction(
         console.warn('[StudySmarts Debug - generateQuizAction] AI returned null/undefined flashcards array.');
         throw new Error("The AI model returned invalid quiz data. Please try again.");
     }
-    if (result.flashcards.length === 0 && input.quizLength > 0) { // Only warn if user expected cards
+    if (result.flashcards.length === 0 && input.quizLength > 0) { 
         console.warn('[StudySmarts Debug - generateQuizAction] AI returned an empty set of flashcards when some were expected.');
-         // To provide some feedback to the user that generation happened but no cards were created.
-        // Depending on strictness, you might throw an error here too.
-        // For now, returning an empty array to allow the UI to display "no cards generated".
     }
     return result.flashcards;
   } catch (error) {
     console.error('[StudySmarts Debug - generateQuizAction] Error generating quiz:', error);
     if (error instanceof Error && error.message.includes("Generated quiz content is empty")) {
-        // Specific handling for the "empty content" error from the flow
         throw new Error("The AI model returned an empty quiz. Please try again with different material or adjust quiz length.");
     } else if (error instanceof Error) {
       throw new Error(error.message || 'Failed to generate quiz due to an AI model error.'); 
@@ -63,17 +59,26 @@ export async function generateQuizAction(
   }
 }
 
-export interface GenerateAndAnalyzeExamActionInput extends GenerateExamAndAnalyzeInput {}
+// Make GenerateAndAnalyzeExamActionInput include the optional 'exam' field
+export interface GenerateAndAnalyzeExamActionInput extends Omit<GenerateExamAndAnalyzeInputFlow, 'exam' | 'userAnswers' | 'numberOfQuestions'> {
+  courseMaterial: string;
+  numberOfQuestions?: number;
+  userAnswers?: string[];
+  exam?: ExamQuestion[];
+}
+
 
 export async function generateAndAnalyzeExamAction(
   input: GenerateAndAnalyzeExamActionInput
 ): Promise<GenerateExamAndAnalyzeOutput> {
   try {
-    const result = await generateExamAndAnalyzeFlow({ 
-      courseMaterial: input.courseMaterial, 
-      numberOfQuestions: input.numberOfQuestions || 30, 
-      userAnswers: input.userAnswers 
-    });
+    const flowInput: GenerateExamAndAnalyzeInputFlow = {
+      courseMaterial: input.courseMaterial,
+      numberOfQuestions: input.numberOfQuestions || 30, // Default here if not provided
+      userAnswers: input.userAnswers,
+      exam: input.exam, // Pass the exam questions if provided
+    };
+    const result = await generateExamAndAnalyzeFlow(flowInput);
     return result;
   } catch (error) {
     console.error('Error in generateAndAnalyzeExamAction:', error);
@@ -89,7 +94,8 @@ export async function getExtraReadingsAction(
 ): Promise<GenerateExtraReadingsOutput> {
    try {
     const result = await generateExtraReadingsFlow(input);
-    return result;
+    // Ensure articles is always an array, even if the flow returns undefined/null
+    return { articles: result.articles || [] };
   } catch (error) {
     console.error('Error in getExtraReadingsAction:', error);
     if (error instanceof Error) {
@@ -131,7 +137,7 @@ export interface DatedScore {
   score: number; // Percentage
   name: string;
   type: 'Quiz' | 'Exam';
-  results?: ExamResult[]; // Added to store exam results for display
+  results?: ExamResult[]; 
 }
 
 export interface TopicPerformance {
@@ -142,26 +148,22 @@ export interface TopicPerformance {
 }
 
 export interface QuizScoreDistributionItem {
-    name: string; // Quiz name
-    score: number; // Score for this specific quiz
+    name: string; 
+    score: number; 
 }
 
 export interface AnalyticsSummary {
   overallAverageScore: number;
   quizzesTaken: number;
   examsTaken: number;
-  overallScoreProgress: DatedScore[]; // Sorted by date
-  topicPerformance: TopicPerformance[]; // Processed from exam results
-  areasForImprovement: TopicPerformance[]; // Top N topics with lowest accuracy
-  quizScoreDistribution: QuizScoreDistributionItem[]; // For pie chart
+  overallScoreProgress: DatedScore[]; 
+  topicPerformance: TopicPerformance[]; 
+  areasForImprovement: TopicPerformance[]; 
+  quizScoreDistribution: QuizScoreDistributionItem[]; 
 }
 
 // --- Analytics Action ---
 export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
-  // In a real application, this data would be fetched from a database
-  // For now, we'll use mock historical data and process it.
-
-  // Mock quiz attempts
   const mockQuizAttempts: DatedScore[] = [
     { name: 'Algebra Basics Quiz', score: 80, date: '2024-07-01', type: 'Quiz' },
     { name: 'Calculus Intro Quiz', score: 70, date: '2024-07-08', type: 'Quiz' },
@@ -170,9 +172,8 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
     { name: 'Chemistry Stoichiometry Quiz', score: 75, date: '2024-07-12', type: 'Quiz' },
   ];
 
-  // Mock exam attempts (GenerateExamAndAnalyzeOutput + date and name)
   interface MockExamAttempt extends GenerateExamAndAnalyzeOutput {
-    date: string; // 'YYYY-MM-DD'
+    date: string; 
     name: string;
   }
 
@@ -211,7 +212,7 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
       results: [
         { question: 'Chemistry Q1: What is H2O?', type: 'multiple_choice', correctAnswer: 'Water', userAnswer: 'Water', isCorrect: true, topic: 'Chemistry' },
         { question: 'Biology Q1: Mitochondria is the powerhouse of the cell.', type: 'true_false', correctAnswer: 'true', userAnswer: 'true', isCorrect: true, topic: 'Biology' },
-        { question: 'Physics Q3: Define velocity.', type: 'short_answer', correctAnswer: 'Rate of change of displacement', userAnswer: 'Speed in a direction', isCorrect: true, topic: 'Physics' }, // Assuming LLM grades this as correct
+        { question: 'Physics Q3: Define velocity.', type: 'short_answer', correctAnswer: 'Rate of change of displacement', userAnswer: 'Speed in a direction', isCorrect: true, topic: 'Physics' }, 
         { question: 'Statistics Q1: Mean is a measure of central tendency.', type: 'true_false', correctAnswer: 'true', userAnswer: 'false', isCorrect: false, topic: 'Statistics' },
       ],
       topicsToReview: ['Statistics'],
@@ -219,7 +220,6 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
     },
   ];
 
-  // Process data
   const allScores: DatedScore[] = [
     ...mockQuizAttempts,
     ...mockExamAttempts.map(attempt => {
@@ -230,7 +230,7 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
         score: totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0,
         date: attempt.date,
         type: 'Exam' as 'Exam',
-        results: attempt.results, // Store full results for display
+        results: attempt.results, 
       };
     }),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -256,12 +256,12 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
     correct: data.correct,
     total: data.total,
     accuracy: data.total > 0 ? (data.correct / data.total) * 100 : 0,
-  })).sort((a,b) => b.accuracy - a.accuracy); // Sort by accuracy desc
+  })).sort((a,b) => b.accuracy - a.accuracy); 
 
   const areasForImprovement = [...topicPerformance]
-    .filter(topic => topic.accuracy < 100) // Only include topics that are not 100%
-    .sort((a, b) => a.accuracy - b.accuracy) // Sort by accuracy asc
-    .slice(0, 5); // Top 5 lowest (or fewer if less than 5 imperfect topics)
+    .filter(topic => topic.accuracy < 100) 
+    .sort((a, b) => a.accuracy - b.accuracy) 
+    .slice(0, 5); 
 
   const quizScoreDistribution: QuizScoreDistributionItem[] = mockQuizAttempts.map(qa => ({
     name: qa.name,
@@ -282,7 +282,5 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
 // Export types for frontend usage
 export type { Flashcard, ExamQuestion, ExamResult };
 export type { ExplainTermInput, ExplainTermOutput };
-export type { GenerateExamAndAnalyzeOutput, GenerateExamAndAnalyzeInput };
+export type { GenerateExamAndAnalyzeOutput, GenerateExamAndAnalyzeInput as GenerateExamAndAnalyzeInputFlow }; // Export flow's input type
 export type { Article };
-
-    
