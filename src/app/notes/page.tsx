@@ -26,7 +26,10 @@ export default function NotesPage() {
     script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
     script.onload = () => {
       // @ts-ignore
-      window.mermaid.initialize({ startOnLoad: false, theme: 'neutral' }); // Use neutral theme for better dark/light mode compatibility
+      if (window.mermaid) {
+        // @ts-ignore
+        window.mermaid.initialize({ startOnLoad: false, theme: 'neutral' }); 
+      }
       setMermaidScriptLoaded(true);
     };
     document.head.appendChild(script);
@@ -156,9 +159,12 @@ export default function NotesPage() {
                   // eslint-disable-next-line @typescript-eslint/no-unused-vars
                   pre({ node, ...props }) {
                     // @ts-ignore
-                    const match = /language-(\w+)/.exec(props.className || '');
-                    if (match && match[1] === 'mermaid') {
-                      // @ts-ignore
+                    const childrenArray = React.Children.toArray(props.children);
+                    // @ts-ignore
+                    const codeChild = childrenArray.find(child => React.isValidElement(child) && child.type === 'code');
+                    // @ts-ignore
+                    if (React.isValidElement(codeChild) && codeChild.props.className?.includes('language-mermaid')) {
+                       // @ts-ignore
                        return <pre {...props} className="language-mermaid">{props.children}</pre>;
                     }
                     // @ts-ignore
@@ -180,12 +186,14 @@ export default function NotesPage() {
                       </code>
                     );
                   },
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-md my-4 shadow-md" alt={props.alt || ''} {...props} />,
                   table: ({node, ...props}) => <table className="w-full border-collapse border border-border" {...props} />,
                   th: ({node, ...props}) => <th className="border border-border px-4 py-2 text-left font-semibold" {...props} />,
                   td: ({node, ...props}) => <td className="border border-border px-4 py-2" {...props} />,
-                  details: ({node, ...props}) => <details className="mb-4 p-2 border rounded-md bg-background" {...props} />,
+                  details: ({node, ...props}) => <details className="mb-4 p-2 border rounded-md bg-background shadow" {...props} />,
                   summary: ({node, ...props}) => <summary className="font-semibold cursor-pointer hover:text-primary" {...props} />,
-                  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-2 rounded-r-md" {...props} />,
+                  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow" {...props} />,
                 }}
               >
                 {generatedNotes}
