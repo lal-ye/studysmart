@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useTransition, useEffect, useRef } from 'react'; // Added React import
@@ -11,22 +10,18 @@ import { useToast } from '@/hooks/use-toast';
 import { generateNotesAction, type GenerateNotesActionInput } from '@/lib/actions';
 import FileUpload from '@/components/common/FileUpload';
 import { Lightbulb, Sparkles } from 'lucide-react';
-import remarkGfm from 'remark-gfm'; // For GFM tables, strikethrough, etc.
-import rehypeRaw from 'rehype-raw'; // To allow HTML like <details>
+import remarkGfm from 'remark-gfm'; 
+import rehypeRaw from 'rehype-raw'; 
 import { cn } from '@/lib/utils';
 
 export default function NotesPage() {
-  // State for the Textarea's current value (immediate feedback)
   const [textInput, setTextInput] = useState('');
-  // State for the debounced course material, used for generation logic
   const [courseMaterial, setCourseMaterial] = useState('');
   const [sourceName, setSourceName] = useState<string | undefined>(undefined);
   const [generatedNotes, setGeneratedNotes] = useState('');
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
   const [mermaidScriptLoaded, setMermaidScriptLoaded] = useState(false);
-
-  // Ref for the debounce timer
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -42,7 +37,6 @@ export default function NotesPage() {
     };
     document.head.appendChild(script);
     
-    // Cleanup debounce timer and mermaid script on unmount
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -76,27 +70,23 @@ export default function NotesPage() {
 
   const handleTextInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = event.target.value;
-    setTextInput(newText); // Update text input field immediately
+    setTextInput(newText); 
 
-    // Clear existing timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Set a new timer
     debounceTimerRef.current = setTimeout(() => {
-      setCourseMaterial(newText); // Update the debounced state used for generation
+      setCourseMaterial(newText); 
       if (!sourceName && newText.trim()) {
         setSourceName("Pasted Text");
       } else if (!newText.trim() && sourceName === "Pasted Text") {
-        // Clear sourceName if text is cleared and it was "Pasted Text"
         setSourceName(undefined);
       }
-    }, 500); // 500ms debounce delay
+    }, 500); 
   };
 
   const handleGenerateNotes = () => {
-    // Uses `courseMaterial` (the debounced value)
     if (!courseMaterial.trim()) {
       toast({
         title: 'Input Required',
@@ -127,10 +117,9 @@ export default function NotesPage() {
   };
 
   const handleFileRead = (content: string, fileName?: string) => {
-    setTextInput(content); // Update Textarea for immediate display
-    setCourseMaterial(content); // Update debounced state directly as file upload is a discrete event
+    setTextInput(content); 
+    setCourseMaterial(content); 
     setSourceName(fileName);
-    // Clear any pending debounce from manual typing
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -141,7 +130,7 @@ export default function NotesPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <Sparkles className="h-8 w-8 text-primary" />
+            <Sparkles className="h-8 w-8 text-primary" aria-hidden="true" />
             <div>
               <CardTitle className="text-2xl font-bold">Dynamic Note Generation</CardTitle>
               <CardDescription>
@@ -153,22 +142,23 @@ export default function NotesPage() {
         <CardContent className="space-y-4">
           <FileUpload onFileRead={handleFileRead} />
           <div>
-            <label htmlFor="courseMaterialText" className="block text-sm font-medium mb-1">
+            <Label htmlFor="courseMaterialText" className="block text-sm font-medium mb-1">
               Course Material (Paste Text)
-            </label>
+            </Label>
             <Textarea
               id="courseMaterialText"
               placeholder="Paste your course material here..."
-              value={textInput} // Use textInput for immediate display
+              value={textInput} 
               onChange={handleTextInputChange}
               rows={10}
               className="min-h-[200px]"
+              aria-label="Paste course material for note generation"
             />
           </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={handleGenerateNotes} disabled={isPending || !courseMaterial.trim()}>
-            {isPending ? <LoadingSpinner className="mr-2" /> : <Lightbulb className="mr-2 h-4 w-4" />}
+          <Button onClick={handleGenerateNotes} disabled={isPending || !courseMaterial.trim()} aria-label="Generate dynamic notes">
+            {isPending ? <LoadingSpinner className="mr-2" /> : <Lightbulb className="mr-2 h-4 w-4" aria-hidden="true" />}
             Generate Notes
           </Button>
         </CardFooter>
@@ -176,7 +166,7 @@ export default function NotesPage() {
 
       {isPending && (
         <Card>
-          <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]">
+          <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]" role="status" aria-live="polite">
             <LoadingSpinner size={48} />
             <p className="mt-4 text-muted-foreground">Generating your notes, please wait...</p>
           </CardContent>
@@ -194,7 +184,6 @@ export default function NotesPage() {
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw]}
                 components={{
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
                   pre({ node, ...props }) {
                     // @ts-ignore
                     const childrenArray = React.Children.toArray(props.children);
@@ -208,7 +197,6 @@ export default function NotesPage() {
                     // @ts-ignore
                     return <pre className="bg-muted/50 p-4 rounded-md overflow-auto" {...props} />;
                   },
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
                   code({ node, inline, className, children, ...props }) {
                     const match = /language-(\w+)/.exec(className || '');
                     if (match && match[1] === 'mermaid' && !inline) {
@@ -224,7 +212,6 @@ export default function NotesPage() {
                       </code>
                     );
                   },
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-md my-4 shadow-md border border-border" alt={props.alt || ''} {...props} />,
                   table: ({node, ...props}) => <table className="w-full my-4 border-collapse border border-border shadow-sm" {...props} />,
                   thead: ({node, ...props}) => <thead className="bg-muted/50 border-b border-border" {...props} />,
@@ -254,4 +241,3 @@ export default function NotesPage() {
     </div>
   );
 }
-

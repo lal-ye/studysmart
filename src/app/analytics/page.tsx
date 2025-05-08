@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
+import type { ToastProps } from '@/components/ui/toast';
 
 
 const overallProgressChartConfig = {
@@ -28,12 +28,26 @@ const topicPerformanceChartConfig = {
   },
 } satisfies ChartConfig;
 
+interface ToastArgsForPage {
+  title: string;
+  description?: string;
+  variant?: ToastProps['variant'];
+}
+
 
 export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary | null>(null);
   const [storedExamAttempts, setStoredExamAttempts] = useState<StoredExamAttempt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [toastArgs, setToastArgs] = useState<ToastArgsForPage | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (toastArgs) {
+      toast(toastArgs);
+      setToastArgs(null);
+    }
+  }, [toastArgs, toast]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -43,7 +57,6 @@ export default function AnalyticsPage() {
       setStoredExamAttempts(loadedAttempts);
 
       if (loadedAttempts.length > 0) {
-        // Process loaded attempts to generate analytics data
         const overallScores: DatedScore[] = loadedAttempts.map(attempt => ({
           name: attempt.name,
           score: attempt.overallScore,
@@ -79,22 +92,20 @@ export default function AnalyticsPage() {
           .sort((a, b) => a.accuracy - b.accuracy)
           .slice(0, 5);
         
-        // Placeholder for quiz data as it's not currently stored
         const quizScoreDistribution: QuizScoreDistributionItem[] = []; 
         const quizzesTaken = 0; 
 
 
         setAnalyticsData({
           overallAverageScore,
-          quizzesTaken, // Replace with actual quiz data if implemented
+          quizzesTaken, 
           examsTaken: loadedAttempts.length,
           overallScoreProgress: overallScores,
           topicPerformance,
           areasForImprovement,
-          quizScoreDistribution, // Replace with actual quiz data if implemented
+          quizScoreDistribution, 
         });
       } else {
-        // Set default empty state if no history
         setAnalyticsData({
             overallAverageScore: 0,
             quizzesTaken: 0,
@@ -107,12 +118,12 @@ export default function AnalyticsPage() {
       }
     } catch (error) {
       console.error("Failed to load or process analytics data from localStorage:", error);
-      toast({
+      setToastArgs({
         title: "Error Loading Analytics",
         description: (error as Error).message || "Could not load analytics data from local storage.",
         variant: "destructive",
       });
-      setAnalyticsData(null); // Reset or handle error state
+      setAnalyticsData(null); 
     } finally {
         setIsLoading(false);
     }
@@ -120,7 +131,7 @@ export default function AnalyticsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
+      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]" role="status" aria-live="polite">
         <LoadingSpinner size={48} />
         <p className="ml-4 text-lg">Loading analytics dashboard...</p>
       </div>
@@ -134,7 +145,7 @@ export default function AnalyticsPage() {
           <CardTitle className="text-2xl font-bold">Analytics Dashboard</CardTitle>
         </CardHeader>
         <CardContent className="text-center py-10">
-          <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" aria-hidden="true" />
           <p className="text-xl text-muted-foreground">No analytics data available or failed to load.</p>
           <p className="text-sm text-muted-foreground mt-2">Please complete some exams to see your analytics.</p>
         </CardContent>
@@ -166,7 +177,7 @@ export default function AnalyticsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <BarChartIcon className="h-8 w-8 text-primary" />
+            <BarChartIcon className="h-8 w-8 text-primary" aria-hidden="true" />
             <div>
               <CardTitle className="text-2xl font-bold">Analytics Dashboard</CardTitle>
               <CardDescription>
@@ -178,9 +189,9 @@ export default function AnalyticsPage() {
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <InfoCard title="Overall Average Score" value={`${overallAverageScore.toFixed(1)}%`} icon={<Activity className="h-6 w-6 text-primary" />} description="Based on completed exams"/>
-        <InfoCard title="Quizzes Taken" value={quizzesTaken.toString()} icon={<TrendingUp className="h-6 w-6 text-primary" />} description="Feature coming soon"/>
-        <InfoCard title="Exams Taken" value={examsTaken.toString()} icon={<TrendingDown className="h-6 w-6 text-primary" />} />
+        <InfoCard title="Overall Average Score" value={`${overallAverageScore.toFixed(1)}%`} icon={<Activity className="h-6 w-6 text-primary" aria-hidden="true"/>} description="Based on completed exams"/>
+        <InfoCard title="Quizzes Taken" value={quizzesTaken.toString()} icon={<TrendingUp className="h-6 w-6 text-primary" aria-hidden="true" />} description="Feature coming soon"/>
+        <InfoCard title="Exams Taken" value={examsTaken.toString()} icon={<TrendingDown className="h-6 w-6 text-primary" aria-hidden="true"/>} />
       </div>
 
       <Card className="shadow-md">
@@ -190,7 +201,7 @@ export default function AnalyticsPage() {
         <CardContent className="h-[350px]">
           {overallScoreProgress.length > 0 ? (
             <ChartContainer config={overallProgressChartConfig} className="w-full h-full">
-              <RechartsLineChart data={overallScoreProgress} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+              <RechartsLineChart data={overallScoreProgress} margin={{ top: 5, right: 20, left: -10, bottom: 5 }} aria-label="Line chart showing overall exam score progress over time">
                 <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
                 <YAxis domain={[0, 100]} unit="%" />
                 <Tooltip content={<ChartTooltipContent indicator="line" labelKey="name" />} />
@@ -212,7 +223,7 @@ export default function AnalyticsPage() {
         <CardContent className="h-[350px]">
          {topicPerformance.length > 0 ? (
             <ChartContainer config={topicPerformanceChartConfig} className="w-full h-full">
-              <RechartsBarChart data={topicPerformance} layout="vertical" margin={{ right: 30 }}>
+              <RechartsBarChart data={topicPerformance} layout="vertical" margin={{ right: 30 }} aria-label="Bar chart showing accuracy percentage per topic">
                 <XAxis type="number" domain={[0, 100]} unit="%" />
                 <YAxis dataKey="topic" type="category" width={120} tickLine={false} axisLine={false}/>
                 <Tooltip content={<ChartTooltipContent indicator="dot" />} />
@@ -235,7 +246,7 @@ export default function AnalyticsPage() {
           <CardContent className="h-[300px]">
             {quizScoreDistribution.length > 0 ? (
               <ChartContainer config={{}} className="w-full h-full">
-                  <RechartsPieChart>
+                  <RechartsPieChart aria-label="Pie chart showing quiz score distribution">
                       <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
                       <Pie data={quizScoreDistribution} dataKey="score" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
                           {quizScoreDistribution.map((entry, index) => (
@@ -289,7 +300,6 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
-        {/* Display Exam Results History */}
         {storedExamAttempts.length > 0 && (
             <Card className="shadow-md">
                 <CardHeader>
@@ -297,8 +307,8 @@ export default function AnalyticsPage() {
                     <CardDescription>Review detailed results from your past exams.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Accordion type="single" collapsible className="w-full">
-                        {storedExamAttempts.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((attempt, index) => ( // Sort by most recent
+                    <Accordion type="single" collapsible className="w-full" aria-label="Previous Exam Attempts">
+                        {storedExamAttempts.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((attempt, index) => ( 
                             <AccordionItem value={attempt.id} key={attempt.id}>
                                 <AccordionTrigger className="text-left hover:no-underline">
                                     <div className="flex items-center justify-between w-full">
@@ -368,4 +378,3 @@ function InfoCard({ title, value, icon, description }: InfoCardProps) {
     </Card>
   );
 }
-

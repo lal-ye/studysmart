@@ -38,8 +38,8 @@ export default function SiteSidebar() {
   return (
     <Sidebar side="left" variant="sidebar" collapsible="icon">
       <SidebarHeader className="p-4">
-        <Link href="/" className="flex items-center gap-2 text-primary">
-          <BookOpenText className="h-7 w-7" />
+        <Link href="/" className="flex items-center gap-2 text-primary" aria-label="StudySmarts Dashboard">
+          <BookOpenText className="h-7 w-7" aria-hidden="true" />
           <span className="text-xl font-semibold group-data-[collapsible=icon]:hidden">
             StudySmarts
           </span>
@@ -58,9 +58,10 @@ export default function SiteSidebar() {
                     pathname === item.href && 'bg-sidebar-accent text-sidebar-accent-foreground'
                   )}
                   tooltip={item.label}
+                  aria-current={pathname === item.href ? 'page' : undefined}
                 >
                   <a>
-                    <item.icon className="h-5 w-5" />
+                    <item.icon className="h-5 w-5" aria-hidden="true" />
                     <span className="group-data-[collapsible=icon]:hidden">
                       {item.label}
                     </span>
@@ -73,8 +74,8 @@ export default function SiteSidebar() {
       </SidebarContent>
       <Separator />
       <SidebarFooter className="p-2">
-        <Button variant="ghost" className="w-full justify-start gap-2 group-data-[collapsible=icon]:justify-center">
-          <LogOut className="h-5 w-5" />
+        <Button variant="ghost" className="w-full justify-start gap-2 group-data-[collapsible=icon]:justify-center" aria-label="Logout and return to the login screen">
+          <LogOut className="h-5 w-5" aria-hidden="true" />
           <span className="group-data-[collapsible=icon]:hidden">Logout</span>
         </Button>
       </SidebarFooter>

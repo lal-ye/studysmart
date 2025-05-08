@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -44,8 +43,8 @@ export default function ExamsPage() {
 
   const [isProcessingAction, startProcessingActionTransition] = useTransition();
   const [isFetchingReadings, startFetchingReadingsTransition] = useTransition();
-  const { toast } = useToast();
   const [toastArgs, setToastArgs] = useState<ToastArgsForPage | null>(null);
+  const { toast } = useToast();
 
 
   useEffect(() => {
@@ -67,7 +66,6 @@ export default function ExamsPage() {
     setExamResultsData(null);
     setUserAnswers({});
     setCurrentQuestionIndex(0);
-    // Do not reset examName here, allow user to set it before starting or keep previous if desired for re-attempts.
 
     startProcessingActionTransition(async () => {
       try {
@@ -114,7 +112,6 @@ export default function ExamsPage() {
         };
         const result = await generateAndAnalyzeExamAction(input);
         
-        // Store exam results
         const finalResults = result.results;
         const overallScore = finalResults.filter(r => r.isCorrect).length / result.exam.length * 100;
         const attemptId = Date.now().toString();
@@ -123,7 +120,7 @@ export default function ExamsPage() {
         const newAttempt: StoredExamAttempt = {
             id: attemptId,
             name: finalExamName,
-            date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            date: new Date().toISOString().split('T')[0], 
             examQuestions: result.exam,
             examResults: finalResults,
             overallScore: overallScore,
@@ -205,7 +202,7 @@ export default function ExamsPage() {
     setPersistedExamQuestions([]);
     setUserAnswers({});
     setCurrentQuestionIndex(0);
-    setExamName(''); // Reset exam name for new exam
+    setExamName(''); 
   };
 
   const currentQuestion = currentExamQuestions[currentQuestionIndex];
@@ -214,7 +211,7 @@ export default function ExamsPage() {
   if (examState === 'generating_exam' || examState === 'grading_exam') {
     return (
       <Card>
-        <CardContent className="p-6 flex flex-col items-center justify-center min-h-[300px]">
+        <CardContent className="p-6 flex flex-col items-center justify-center min-h-[300px]" role="status" aria-live="polite">
           <LoadingSpinner size={48} />
           <p className="mt-4 text-muted-foreground">
             {examState === 'generating_exam' ? 'Generating your 30-question exam...' : 'Grading your exam, please wait...'}
@@ -232,7 +229,7 @@ export default function ExamsPage() {
             {examName.trim() || `Exam Attempt - ${new Date().toLocaleDateString()}`}
           </CardTitle>
           <CardDescription>Question {currentQuestionIndex + 1} of {currentExamQuestions.length} (Topic: {currentQuestion.topic})</CardDescription>
-          <Progress value={progress} className="w-full mt-2" />
+          <Progress value={progress} className="w-full mt-2" aria-label={`Exam progress: ${progress.toFixed(0)}%`} />
            <p className="text-sm text-muted-foreground mt-1">{Object.keys(userAnswers).length} / {currentExamQuestions.length} answered</p>
             <div className="mt-4">
                 <Label htmlFor="examNameInput" className="text-sm font-medium">Exam Name (Optional)</Label>
@@ -242,6 +239,7 @@ export default function ExamsPage() {
                     value={examName}
                     onChange={(e) => setExamName(e.target.value)}
                     className="mt-1"
+                    aria-label="Enter a name for this exam attempt"
                 />
             </div>
         </CardHeader>
@@ -252,11 +250,12 @@ export default function ExamsPage() {
               value={userAnswers[currentQuestionIndex] || ""} 
               onValueChange={(value) => handleAnswerChange(currentQuestionIndex, value)}
               className="space-y-2"
+              aria-label="Multiple choice options"
             >
               {currentQuestion.options.map((option, optIndex) => (
                 <div key={optIndex} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`q${currentQuestionIndex}-opt${optIndex}`} />
-                  <Label htmlFor={`q${currentQuestionIndex}-opt${optIndex}`}>{option}</Label>
+                  <RadioGroupItem value={option} id={`q${currentQuestionIndex}-opt${optIndex}`} aria-labelledby={`q${currentQuestionIndex}-opt${optIndex}-label`} />
+                  <Label htmlFor={`q${currentQuestionIndex}-opt${optIndex}`} id={`q${currentQuestionIndex}-opt${optIndex}-label`}>{option}</Label>
                 </div>
               ))}
             </RadioGroup>
@@ -266,14 +265,15 @@ export default function ExamsPage() {
               value={userAnswers[currentQuestionIndex] || ""} 
               onValueChange={(value) => handleAnswerChange(currentQuestionIndex, value)}
               className="space-y-2"
+              aria-label="True or False options"
             >
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="true" id={`q${currentQuestionIndex}-true`} />
-                <Label htmlFor={`q${currentQuestionIndex}-true`}>True</Label>
+                <RadioGroupItem value="true" id={`q${currentQuestionIndex}-true`} aria-labelledby={`q${currentQuestionIndex}-true-label`} />
+                <Label htmlFor={`q${currentQuestionIndex}-true`} id={`q${currentQuestionIndex}-true-label`}>True</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="false" id={`q${currentQuestionIndex}-false`} />
-                <Label htmlFor={`q${currentQuestionIndex}-false`}>False</Label>
+                <RadioGroupItem value="false" id={`q${currentQuestionIndex}-false`} aria-labelledby={`q${currentQuestionIndex}-false-label`} />
+                <Label htmlFor={`q${currentQuestionIndex}-false`} id={`q${currentQuestionIndex}-false-label`}>False</Label>
               </div>
             </RadioGroup>
           )}
@@ -283,6 +283,7 @@ export default function ExamsPage() {
               value={userAnswers[currentQuestionIndex] || ""}
               onChange={(e) => handleAnswerChange(currentQuestionIndex, e.target.value)}
               rows={4}
+              aria-label="Your answer for short answer question"
             />
           )}
         </CardContent>
@@ -291,16 +292,17 @@ export default function ExamsPage() {
             onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))} 
             disabled={currentQuestionIndex === 0}
             variant="outline"
+            aria-label="Previous question"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" /> Previous
+            <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" /> Previous
           </Button>
           {currentQuestionIndex < currentExamQuestions.length - 1 ? (
-            <Button onClick={() => setCurrentQuestionIndex(prev => Math.min(currentExamQuestions.length - 1, prev + 1))}>
-              Next <ArrowRight className="ml-2 h-4 w-4" />
+            <Button onClick={() => setCurrentQuestionIndex(prev => Math.min(currentExamQuestions.length - 1, prev + 1))} aria-label="Next question">
+              Next <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Button>
           ) : (
-            <Button onClick={handleSubmitExam} className="bg-green-600 hover:bg-green-700">
-              <Send className="mr-2 h-4 w-4" /> Submit Exam
+            <Button onClick={handleSubmitExam} className="bg-green-600 hover:bg-green-700" aria-label="Submit exam">
+              <Send className="mr-2 h-4 w-4" aria-hidden="true" /> Submit Exam
             </Button>
           )}
         </CardFooter>
@@ -325,7 +327,7 @@ export default function ExamsPage() {
             <CardTitle>Detailed Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <Accordion type="single" collapsible className="w-full">
+            <Accordion type="single" collapsible className="w-full" aria-label="Detailed exam results breakdown">
               {examResultsData.exam.map((q, index) => {
                 const result = examResultsData.results[index] || {} as ExamResult; 
                 return (
@@ -351,8 +353,8 @@ export default function ExamsPage() {
                            {q.options.map((opt, i) => (
                             <li key={i} className={opt === q.correctAnswer ? 'font-semibold text-primary' : ''}>
                                 {opt}
-                                {opt === result.userAnswer && opt !== q.correctAnswer && <XCircle className="inline ml-1 h-4 w-4 text-red-500" />}
-                                {opt === q.correctAnswer && <CheckCircle className="inline ml-1 h-4 w-4 text-green-500" />}
+                                {opt === result.userAnswer && opt !== q.correctAnswer && <XCircle className="inline ml-1 h-4 w-4 text-red-500" aria-hidden="true" />}
+                                {opt === q.correctAnswer && <CheckCircle className="inline ml-1 h-4 w-4 text-green-500" aria-hidden="true" />}
                             </li>
                             ))}
                         </ul>
@@ -375,8 +377,8 @@ export default function ExamsPage() {
                 {examResultsData.topicsToReview.map((topic, index) => (
                   <li key={index} className="flex items-center justify-between">
                     <span>{topic}</span>
-                    <Button size="sm" variant="outline" onClick={() => handleFetchExtraReadings(topic)} disabled={isFetchingReadings}>
-                      {isFetchingReadings ? <LoadingSpinner size={16} /> : <BookOpen className="mr-2 h-4 w-4" />}
+                    <Button size="sm" variant="outline" onClick={() => handleFetchExtraReadings(topic)} disabled={isFetchingReadings} aria-label={`Find extra readings for ${topic}`}>
+                      {isFetchingReadings ? <LoadingSpinner size={16} /> : <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />}
                       Find Readings
                     </Button>
                   </li>
@@ -406,7 +408,7 @@ export default function ExamsPage() {
                       <li key={article.url + index} className="text-sm border p-3 rounded-md hover:bg-muted/50">
                         <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center">
                           {article.title}
-                          <ExternalLink className="ml-2 h-3 w-3" />
+                          <ExternalLink className="ml-2 h-3 w-3" aria-hidden="true" />
                         </a>
                       </li>
                     ))}
@@ -419,7 +421,7 @@ export default function ExamsPage() {
           </Card>
         )}
         <CardFooter>
-             <Button onClick={handleStartNewExam} variant="outline">
+             <Button onClick={handleStartNewExam} variant="outline" aria-label="Start a new exam">
                 Start New Exam
             </Button>
         </CardFooter>
@@ -433,7 +435,7 @@ export default function ExamsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <ClipboardCheck className="h-8 w-8 text-primary" />
+            <ClipboardCheck className="h-8 w-8 text-primary" aria-hidden="true" />
             <div>
               <CardTitle className="text-2xl font-bold">Exam Generation & Analysis</CardTitle>
               <CardDescription>
@@ -447,9 +449,9 @@ export default function ExamsPage() {
         <CardContent className="space-y-4">
           <FileUpload onFileRead={handleFileRead} />
           <div>
-            <label htmlFor="courseMaterialTextExam" className="block text-sm font-medium mb-1">
+            <Label htmlFor="courseMaterialTextExam" className="block text-sm font-medium mb-1">
               Course Material (Paste Text)
-            </label>
+            </Label>
             <Textarea
               id="courseMaterialTextExam"
               placeholder="Paste your course material here for exam generation..."
@@ -457,12 +459,13 @@ export default function ExamsPage() {
               onChange={(e) => setCourseMaterial(e.target.value)}
               rows={10}
               className="min-h-[200px]"
+              aria-label="Paste course material for exam generation"
             />
           </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={handleGenerateExam} disabled={isProcessingAction || !courseMaterial.trim()}>
-            {isProcessingAction ? <LoadingSpinner className="mr-2" /> : <FileText className="mr-2 h-4 w-4" />}
+          <Button onClick={handleGenerateExam} disabled={isProcessingAction || !courseMaterial.trim()} aria-label="Generate 30-question exam">
+            {isProcessingAction ? <LoadingSpinner className="mr-2" /> : <FileText className="mr-2 h-4 w-4" aria-hidden="true" />}
             Generate 30-Question Exam
           </Button>
         </CardFooter>

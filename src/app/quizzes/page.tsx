@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { generateQuizAction, explainTermAction, type Flashcard, type ExplainTermInput, type ExplainTermOutput } from '@/lib/actions';
@@ -17,6 +17,7 @@ import FileUpload from '@/components/common/FileUpload';
 import { HelpCircle, Sparkles, Tags, CheckCircle, AlertTriangle, RotateCcw, BookOpenText, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import type { ToastProps } from '@/components/ui/toast';
 
 interface FlashcardComponentProps {
   flashcard: Flashcard;
@@ -50,7 +51,6 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
     return () => window.removeEventListener('resize', adjustHeight);
   }, [flashcard, isFlipped, adjustHeight]);
   
-  // Adjust height when content changes (e.g. card flips)
   useEffect(() => {
     adjustHeight();
   }, [isFlipped, adjustHeight]);
@@ -68,20 +68,25 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
       event.preventDefault();
       onContextMenuOpen(event.clientX, event.clientY, contextText);
     }
-    // Allow default context menu if no text is selected
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      setIsFlipped(!isFlipped);
+      event.preventDefault();
+    }
+  };
 
   const cardStyle: CSSProperties = {
     width: '100%',
-    minHeight: '150px', // Minimum height for the card container
+    minHeight: '150px', 
     perspective: '1000px',
   };
 
   const cardInnerStyle: CSSProperties = {
     position: 'relative',
     width: '100%',
-    height: '100%', // This will be dynamically set by adjustHeight
+    height: '100%', 
     textAlign: 'initial',
     transformStyle: 'preserve-3d',
     transition: 'transform 0.6s',
@@ -93,13 +98,13 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
     width: '100%',
     height: '100%',
     backfaceVisibility: 'hidden',
-    WebkitBackfaceVisibility: 'hidden', // Safari
+    WebkitBackfaceVisibility: 'hidden', 
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
-    padding: '1.5rem', // p-6
+    padding: '1.5rem', 
     border: '1px solid hsl(var(--border))',
-    borderRadius: 'var(--radius)', // rounded-lg from globals.css
+    borderRadius: 'var(--radius)', 
     boxSizing: 'border-box', 
     overflowY: 'auto',
   };
@@ -120,12 +125,16 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
 
   return (
     <div 
-      className="w-full cursor-pointer"
+      className="w-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg" // Added focus styles
       style={cardStyle}
       onClick={() => setIsFlipped(!isFlipped)}
+      onKeyDown={handleKeyDown} // Added keyboard handler
+      tabIndex={0} // Make it focusable
+      role="button" // ARIA role
+      aria-pressed={isFlipped} // ARIA state for flip
+      aria-label={`Flashcard: ${flashcard.question}. Click or press Enter to flip.`} // ARIA label
     >
       <div ref={cardInnerRef} style={cardInnerStyle}>
-        {/* Front of the card */}
         <div ref={frontFaceRef} style={frontStyle} 
             onMouseUpCapture={handleMouseUpCapture(flashcard.question)}
             onContextMenuCapture={handleContextMenuCapture(flashcard.question)}
@@ -138,24 +147,26 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
           </div>
           <div className="flex justify-between items-center mt-auto pt-2">
             <Badge className={cn(difficultyColors[flashcard.difficulty], "text-xs")}>{flashcard.difficulty}</Badge>
-            <RotateCcw className="h-4 w-4 text-muted-foreground" />
+            <RotateCcw className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </div>
         </div>
 
-        {/* Back of the card */}
         <div ref={backFaceRef} style={backStyle}
             onMouseUpCapture={handleMouseUpCapture(flashcard.answer)}
             onContextMenuCapture={handleContextMenuCapture(flashcard.answer)}
         >
           <div>
             <h4 className="text-md font-semibold mb-2">Answer:</h4>
-            <p className="text-sm leading-relaxed break-words select-text">
-              {flashcard.answer}
-            </p>
+            <div className="text-sm leading-relaxed break-words select-text">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                 {flashcard.answer}
+                </ReactMarkdown>
+            </div>
           </div>
           {flashcard.tags && flashcard.tags.length > 0 && (
             <div className="flex items-center gap-1 mt-auto pt-2">
-              <Tags className="h-3 w-3 self-center" />
+              <Tags className="h-3 w-3 self-center" aria-hidden="true"/>
+              <span className="sr-only">Tags:</span>
               {flashcard.tags.map(tag => (
                 <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
               ))}
@@ -193,23 +204,31 @@ function CustomContextMenu({ x, y, onExplain, onClose, menuRef }: CustomContextM
       ref={menuRef}
       style={{ top: y, left: x, position: 'fixed', zIndex: 1000 }}
       className="bg-popover border border-border rounded-md shadow-lg p-1 min-w-[180px]"
+      role="menu" // ARIA role for context menu
     >
-      <Button variant="ghost" className="w-full justify-start px-2 py-1.5 text-sm h-auto" onClick={onExplain}>
-        <BookOpenText className="mr-2 h-4 w-4" /> Explain Selection
+      <Button variant="ghost" className="w-full justify-start px-2 py-1.5 text-sm h-auto" onClick={onExplain} role="menuitem">
+        <BookOpenText className="mr-2 h-4 w-4" aria-hidden="true" /> Explain Selection
       </Button>
     </div>
   );
 }
 
+interface ToastArgsForPage {
+  title: string;
+  description?: string;
+  variant?: ToastProps['variant'];
+  icon?: React.ReactNode;
+}
 
 export default function QuizzesPage() {
   const [courseMaterial, setCourseMaterial] = useState('');
   const [quizLength, setQuizLength] = useState(5);
   const [generatedFlashcards, setGeneratedFlashcards] = useState<Flashcard[]>([]);
   const [isGeneratingQuiz, startGeneratingQuizTransition] = useTransition();
+  
+  const [toastArgs, setToastArgs] = useState<ToastArgsForPage | null>(null);
   const { toast } = useToast();
 
-  // State for "Explain Term" feature
   const [selectedText, setSelectedText] = useState<string | null>(null);
   const [selectedTextContext, setSelectedTextContext] = useState<string | null>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -219,30 +238,37 @@ export default function QuizzesPage() {
   const [showExplanationPopup, setShowExplanationPopup] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (toastArgs) {
+      toast(toastArgs);
+      setToastArgs(null);
+    }
+  }, [toastArgs, toast]);
+
 
   const handleGenerateQuiz = () => {
     if (!courseMaterial.trim()) {
-      toast({ title: 'Input Required', description: 'Please provide course material.', variant: 'destructive', icon: <AlertTriangle className="h-5 w-5" /> });
+      setToastArgs({ title: 'Input Required', description: 'Please provide course material.', variant: 'destructive', icon: <AlertTriangle className="h-5 w-5" /> });
       return;
     }
     if (quizLength < 1 || quizLength > 20) {
-      toast({ title: 'Invalid Quiz Length', description: 'Length must be 1-20.', variant: 'destructive', icon: <AlertTriangle className="h-5 w-5" /> });
+      setToastArgs({ title: 'Invalid Quiz Length', description: 'Length must be 1-20.', variant: 'destructive', icon: <AlertTriangle className="h-5 w-5" /> });
       return;
     }
 
     startGeneratingQuizTransition(async () => {
       setGeneratedFlashcards([]);
-      setShowContextMenu(false); // Close context menu if open
+      setShowContextMenu(false); 
       try {
         const flashcards = await generateQuizAction({ courseMaterial, quizLength });
         if (flashcards.length === 0) {
-            toast({ title: 'No Flashcards Generated', description: 'The AI returned no flashcards. Try different material or quiz length.', variant: 'default' });
+            setToastArgs({ title: 'No Flashcards Generated', description: 'The AI returned no flashcards. Try different material or quiz length.', variant: 'default' });
         } else {
-            toast({ title: 'Quiz Generated!', description: `Your ${flashcards.length} flashcards are ready.`, icon: <CheckCircle className="h-5 w-5" /> });
+            setToastArgs({ title: 'Quiz Generated!', description: `Your ${flashcards.length} flashcards are ready.`, icon: <CheckCircle className="h-5 w-5" /> });
         }
         setGeneratedFlashcards(flashcards);
       } catch (error) {
-        toast({ title: 'Error Generating Quiz', description: (error as Error).message || 'The AI model returned an empty quiz. Please try again with different material or adjust quiz length.', variant: 'destructive', icon: <AlertTriangle className="h-5 w-5" /> });
+        setToastArgs({ title: 'Error Generating Quiz', description: (error as Error).message || 'The AI model returned an empty quiz. Please try again with different material or adjust quiz length.', variant: 'destructive', icon: <AlertTriangle className="h-5 w-5" /> });
         setGeneratedFlashcards([]);
       }
     });
@@ -258,17 +284,15 @@ export default function QuizzesPage() {
   };
 
   const handleContextMenuOpen = (x: number, y: number, context: string) => {
-    if (selectedText) { // Only open if there's a selection from mouseUp
+    if (selectedText) { 
       setContextMenuPosition({ x, y });
-      setSelectedTextContext(context); // Ensure context is set from the element that triggered
+      setSelectedTextContext(context); 
       setShowContextMenu(true);
     }
   };
   
   const handleCloseContextMenu = useCallback(() => {
     setShowContextMenu(false);
-    // Optionally clear selectedText if context menu is closed without action
-    // setSelectedText(null); 
   }, []);
 
   const handleExplainSelectedText = () => {
@@ -283,32 +307,32 @@ export default function QuizzesPage() {
         const result = await explainTermAction(input);
         setExplanationData(result);
       } catch (error) {
-        toast({ title: 'Error Explaining Term', description: (error as Error).message, variant: 'destructive' });
-        setShowExplanationPopup(false); // Close popup on error
+        setToastArgs({ title: 'Error Explaining Term', description: (error as Error).message || "Unknown error explaining term.", variant: 'destructive' });
+        setShowExplanationPopup(false); 
       }
     });
   };
 
-  // Close context menu on Escape key
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         handleCloseContextMenu();
+        if (showExplanationPopup) {
+          setShowExplanationPopup(false);
+        }
       }
     };
-    if (showContextMenu) {
+    if (showContextMenu || showExplanationPopup) {
       document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showContextMenu, handleCloseContextMenu]);
+  }, [showContextMenu, showExplanationPopup, handleCloseContextMenu]);
 
 
   return (
     <div className="space-y-6" onMouseUp={() => {
-        // If no specific text element handled mouseUp to set selectedText, clear it.
-        // This helps prevent context menu from showing with stale selectedText.
         const currentSelection = window.getSelection()?.toString().trim();
         if (!currentSelection) {
             setSelectedText(null);
@@ -317,7 +341,7 @@ export default function QuizzesPage() {
       <Card className="shadow-lg">
         <CardHeader>
            <div className="flex items-center gap-3">
-            <HelpCircle className="h-8 w-8 text-primary" />
+            <HelpCircle className="h-8 w-8 text-primary" aria-hidden="true" />
             <div>
               <CardTitle className="text-2xl font-bold">Flashcard Quiz Generation</CardTitle>
               <CardDescription>
@@ -337,6 +361,7 @@ export default function QuizzesPage() {
               onChange={(e) => setCourseMaterial(e.target.value)}
               rows={8}
               className="min-h-[150px]"
+              aria-label="Course material for quiz generation"
             />
           </div>
           <div>
@@ -348,24 +373,24 @@ export default function QuizzesPage() {
               onChange={(e) => {
                 const rawValue = e.target.value;
                 if (rawValue === '') {
-                  setQuizLength(1); // Default to min 1 if input is cleared
+                  setQuizLength(1); 
                 } else {
                   const num = parseInt(rawValue, 10);
                   if (!isNaN(num)) {
                     const boundedNum = Math.max(1, Math.min(20, num));
                     setQuizLength(boundedNum);
                   }
-                  // If num is NaN from a non-empty string, do nothing, keep last valid quizLength
                 }
               }}
               min="1"
               max="20"
+              aria-label="Number of flashcards to generate, between 1 and 20"
             />
           </div>
         </CardContent>
         <CardFooter>
           <Button onClick={handleGenerateQuiz} disabled={isGeneratingQuiz || !courseMaterial.trim()}>
-            {isGeneratingQuiz ? <LoadingSpinner className="mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            {isGeneratingQuiz ? <LoadingSpinner className="mr-2" /> : <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />}
             Generate Flashcards
           </Button>
         </CardFooter>
@@ -373,7 +398,7 @@ export default function QuizzesPage() {
 
       {isGeneratingQuiz && (
         <Card>
-          <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]">
+          <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]" role="status" aria-live="polite">
             <LoadingSpinner size={48} />
             <p className="mt-4 text-muted-foreground">Generating your flashcards, please wait...</p>
           </CardContent>
@@ -401,7 +426,7 @@ export default function QuizzesPage() {
         </Card>
       )}
 
-      {!isGeneratingQuiz && generatedFlashcards.length === 0 && courseMaterial.trim() && !isGeneratingQuiz && ( // Added !isGeneratingQuiz here
+      {!isGeneratingQuiz && generatedFlashcards.length === 0 && courseMaterial.trim() && (
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-muted-foreground">No flashcards were generated. Try adjusting the material or quiz length.</p>
@@ -423,9 +448,10 @@ export default function QuizzesPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Explanation for: "{selectedText}"</DialogTitle>
+             <DialogDescription>AI-generated explanation for the selected term.</DialogDescription>
           </DialogHeader>
           <div className="py-4 max-h-[60vh] overflow-y-auto">
-            {isFetchingExplanation && <div className="flex justify-center items-center min-h-[100px]"><LoadingSpinner size={32}/></div>}
+            {isFetchingExplanation && <div className="flex justify-center items-center min-h-[100px]" role="status" aria-live="polite"><LoadingSpinner size={32}/> <span className="ml-2">Fetching explanation...</span></div>}
             {explanationData && !isFetchingExplanation && (
               <div className="space-y-3 prose prose-sm sm:prose-base dark:prose-invert max-w-none">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
@@ -438,7 +464,7 @@ export default function QuizzesPage() {
                       {explanationData.relatedLinks.map(link => (
                         <li key={link.url}>
                           <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                            {link.title} <ExternalLink className="inline h-3 w-3 ml-1" />
+                            {link.title} <ExternalLink className="inline h-3 w-3 ml-1" aria-hidden="true" />
                           </a>
                         </li>
                       ))}
@@ -449,7 +475,7 @@ export default function QuizzesPage() {
             )}
           </div>
           <DialogFooter>
-            <Button onClick={() => setShowExplanationPopup(false)}>Close</Button>
+            <Button onClick={() => setShowExplanationPopup(false)} aria-label="Close explanation pop-up">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
