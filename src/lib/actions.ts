@@ -1,3 +1,4 @@
+
 'use server';
 
 import { generateDynamicNotes as generateDynamicNotesFlow, type GenerateDynamicNotesInput } from '@/ai/flows/generate-dynamic-notes';
@@ -45,11 +46,17 @@ export async function generateQuizAction(
     }
     if (result.flashcards.length === 0 && input.quizLength > 0) { // Only warn if user expected cards
         console.warn('[StudySmarts Debug - generateQuizAction] AI returned an empty set of flashcards when some were expected.');
+         // To provide some feedback to the user that generation happened but no cards were created.
+        // Depending on strictness, you might throw an error here too.
+        // For now, returning an empty array to allow the UI to display "no cards generated".
     }
     return result.flashcards;
   } catch (error) {
     console.error('[StudySmarts Debug - generateQuizAction] Error generating quiz:', error);
-    if (error instanceof Error) {
+    if (error instanceof Error && error.message.includes("Generated quiz content is empty")) {
+        // Specific handling for the "empty content" error from the flow
+        throw new Error("The AI model returned an empty quiz. Please try again with different material or adjust quiz length.");
+    } else if (error instanceof Error) {
       throw new Error(error.message || 'Failed to generate quiz due to an AI model error.'); 
     }
     throw new Error('Failed to generate quiz due to an unknown server error. Please try again.');
@@ -83,8 +90,7 @@ export async function getExtraReadingsAction(
    try {
     const result = await generateExtraReadingsFlow(input);
     return result;
-  } catch (error)
-    {
+  } catch (error) {
     console.error('Error in getExtraReadingsAction:', error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch extra readings: ${error.message}. Please try again.`);
@@ -125,7 +131,7 @@ export interface DatedScore {
   score: number; // Percentage
   name: string;
   type: 'Quiz' | 'Exam';
-  results?: ExamResult[];
+  results?: ExamResult[]; // Added to store exam results for display
 }
 
 export interface TopicPerformance {
@@ -160,6 +166,8 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
     { name: 'Algebra Basics Quiz', score: 80, date: '2024-07-01', type: 'Quiz' },
     { name: 'Calculus Intro Quiz', score: 70, date: '2024-07-08', type: 'Quiz' },
     { name: 'Geometry Fundamentals Quiz', score: 90, date: '2024-07-15', type: 'Quiz' },
+     { name: 'Physics Kinematics Quiz', score: 65, date: '2024-07-05', type: 'Quiz' },
+    { name: 'Chemistry Stoichiometry Quiz', score: 75, date: '2024-07-12', type: 'Quiz' },
   ];
 
   // Mock exam attempts (GenerateExamAndAnalyzeOutput + date and name)
@@ -170,42 +178,44 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
 
   const mockExamAttempts: MockExamAttempt[] = [
     {
-      name: 'Midterm Exam - Math',
+      name: 'Midterm Exam - Math & Physics',
       date: '2024-07-10',
-      exam: [ /* array of ExamQuestion */ 
-        { question: 'Algebra Q1', type: 'multiple_choice', options: ['A','B','C','D'], correctAnswer: 'A', topic: 'Algebra'},
-        { question: 'Algebra Q2', type: 'short_answer', correctAnswer: 'Solution', topic: 'Algebra'},
-        { question: 'Calculus Q1', type: 'true_false', correctAnswer: 'true', topic: 'Calculus'},
-        { question: 'Calculus Q2', type: 'multiple_choice', options: ['A','B','C','D'], correctAnswer: 'B', topic: 'Calculus'},
-        { question: 'Geometry Q1', type: 'short_answer', correctAnswer: 'Proof', topic: 'Geometry'},
+      exam: [ 
+        { question: 'Algebra Q1: Solve for x in 2x+5=11', type: 'multiple_choice', options: ['2','3','4','5'], correctAnswer: '3', topic: 'Algebra'},
+        { question: 'Algebra Q2: Factor x^2-9', type: 'short_answer', correctAnswer: '(x-3)(x+3)', topic: 'Algebra'},
+        { question: 'Calculus Q1: Is d/dx(sin(x)) = cos(x)?', type: 'true_false', correctAnswer: 'true', topic: 'Calculus'},
+        { question: 'Physics Q1: Newtons first law involves inertia.', type: 'true_false', correctAnswer: 'true', topic: 'Physics'},
+        { question: 'Physics Q2: Unit of Force?', type: 'multiple_choice', options: ['Joule','Watt','Newton','Pascal'], correctAnswer: 'Newton', topic: 'Physics'},
+        { question: 'Geometry Q1: Sum of angles in a triangle is 180 degrees.', type: 'short_answer', correctAnswer: '180 degrees', topic: 'Geometry'},
       ],
       results: [
-        { question: 'Algebra Q1', type: 'multiple_choice', correctAnswer: 'A', userAnswer: 'A', isCorrect: true, topic: 'Algebra' },
-        { question: 'Algebra Q2', type: 'short_answer', correctAnswer: 'Solution', userAnswer: 'Solution', isCorrect: true, topic: 'Algebra' },
-        { question: 'Calculus Q1', type: 'true_false', correctAnswer: 'true', userAnswer: 'false', isCorrect: false, topic: 'Calculus' },
-        { question: 'Calculus Q2', type: 'multiple_choice', correctAnswer: 'B', userAnswer: 'C', isCorrect: false, topic: 'Calculus' },
-        { question: 'Geometry Q1', type: 'short_answer', correctAnswer: 'Proof', userAnswer: 'Incorrect Proof', isCorrect: false, topic: 'Geometry' },
+        { question: 'Algebra Q1: Solve for x in 2x+5=11', type: 'multiple_choice', correctAnswer: '3', userAnswer: '3', isCorrect: true, topic: 'Algebra' },
+        { question: 'Algebra Q2: Factor x^2-9', type: 'short_answer', correctAnswer: '(x-3)(x+3)', userAnswer: '(x-3)(x+3)', isCorrect: true, topic: 'Algebra' },
+        { question: 'Calculus Q1: Is d/dx(sin(x)) = cos(x)?', type: 'true_false', correctAnswer: 'true', userAnswer: 'false', isCorrect: false, topic: 'Calculus' },
+        { question: 'Physics Q1: Newtons first law involves inertia.', type: 'true_false', correctAnswer: 'true', userAnswer: 'true', isCorrect: true, topic: 'Physics'},
+        { question: 'Physics Q2: Unit of Force?', type: 'multiple_choice', correctAnswer: 'Newton', userAnswer: 'Watt', isCorrect: false, topic: 'Physics'},
+        { question: 'Geometry Q1: Sum of angles in a triangle is 180 degrees.', type: 'short_answer', correctAnswer: '180 degrees', userAnswer: '360 degrees', isCorrect: false, topic: 'Geometry' },
       ],
-      topicsToReview: ['Calculus', 'Geometry'],
-      extraReadings: [],
+      topicsToReview: ['Calculus', 'Physics', 'Geometry'],
+      extraReadings: [{title: "Calculus Basics", url: "https://example.com/calc-basics"}, {title: "Newton's Laws", url: "https://example.com/newtons-laws"}],
     },
     {
-      name: 'Final Exam - Math',
+      name: 'Final Exam - Science',
       date: '2024-07-25',
-      exam: [ /* array of ExamQuestion */ 
-        { question: 'Algebra Q3', type: 'multiple_choice', options: ['A','B','C','D'], correctAnswer: 'C', topic: 'Algebra'},
-        { question: 'Calculus Q3', type: 'short_answer', correctAnswer: 'Limit definition', topic: 'Calculus'},
-        { question: 'Geometry Q2', type: 'true_false', correctAnswer: 'false', topic: 'Geometry'},
-        { question: 'Statistics Q1', type: 'multiple_choice', options: ['A','B','C','D'], correctAnswer: 'D', topic: 'Statistics'},
+      exam: [ 
+        { question: 'Chemistry Q1: What is H2O?', type: 'multiple_choice', options: ['Hydrogen Oxide','Water','Oxygen Hydride','Acid'], correctAnswer: 'Water', topic: 'Chemistry'},
+        { question: 'Biology Q1: Mitochondria is the powerhouse of the cell.', type: 'true_false', correctAnswer: 'true', topic: 'Biology'},
+        { question: 'Physics Q3: Define velocity.', type: 'short_answer', correctAnswer: 'Rate of change of displacement', topic: 'Physics'},
+        { question: 'Statistics Q1: Mean is a measure of central tendency.', type: 'true_false', correctAnswer: 'true', topic: 'Statistics'},
       ],
       results: [
-        { question: 'Algebra Q3', type: 'multiple_choice', correctAnswer: 'C', userAnswer: 'C', isCorrect: true, topic: 'Algebra' },
-        { question: 'Calculus Q3', type: 'short_answer', correctAnswer: 'Limit definition', userAnswer: 'Limit definition', isCorrect: true, topic: 'Calculus' },
-        { question: 'Geometry Q2', type: 'true_false', correctAnswer: 'false', userAnswer: 'false', isCorrect: true, topic: 'Geometry' },
-        { question: 'Statistics Q1', type: 'multiple_choice', correctAnswer: 'D', userAnswer: 'A', isCorrect: false, topic: 'Statistics' },
+        { question: 'Chemistry Q1: What is H2O?', type: 'multiple_choice', correctAnswer: 'Water', userAnswer: 'Water', isCorrect: true, topic: 'Chemistry' },
+        { question: 'Biology Q1: Mitochondria is the powerhouse of the cell.', type: 'true_false', correctAnswer: 'true', userAnswer: 'true', isCorrect: true, topic: 'Biology' },
+        { question: 'Physics Q3: Define velocity.', type: 'short_answer', correctAnswer: 'Rate of change of displacement', userAnswer: 'Speed in a direction', isCorrect: true, topic: 'Physics' }, // Assuming LLM grades this as correct
+        { question: 'Statistics Q1: Mean is a measure of central tendency.', type: 'true_false', correctAnswer: 'true', userAnswer: 'false', isCorrect: false, topic: 'Statistics' },
       ],
       topicsToReview: ['Statistics'],
-      extraReadings: [],
+      extraReadings: [{title: "Intro to Statistics", url: "https://example.com/intro-stats"}],
     },
   ];
 
@@ -220,7 +230,7 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
         score: totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0,
         date: attempt.date,
         type: 'Exam' as 'Exam',
-          results: attempt.results,
+        results: attempt.results, // Store full results for display
       };
     }),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -249,8 +259,9 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
   })).sort((a,b) => b.accuracy - a.accuracy); // Sort by accuracy desc
 
   const areasForImprovement = [...topicPerformance]
+    .filter(topic => topic.accuracy < 100) // Only include topics that are not 100%
     .sort((a, b) => a.accuracy - b.accuracy) // Sort by accuracy asc
-    .slice(0, 3); // Top 3 lowest
+    .slice(0, 5); // Top 5 lowest (or fewer if less than 5 imperfect topics)
 
   const quizScoreDistribution: QuizScoreDistributionItem[] = mockQuizAttempts.map(qa => ({
     name: qa.name,
@@ -273,3 +284,5 @@ export type { Flashcard, ExamQuestion, ExamResult };
 export type { ExplainTermInput, ExplainTermOutput };
 export type { GenerateExamAndAnalyzeOutput, GenerateExamAndAnalyzeInput };
 export type { Article };
+
+    
