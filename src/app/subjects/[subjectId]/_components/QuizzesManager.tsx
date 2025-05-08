@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useTransition, type CSSProperties, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import remarkGfm from 'remarkGfm';
 import rehypeRaw from 'rehype-raw';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,7 +18,7 @@ import FileUpload from '@/components/common/FileUpload';
 import { HelpCircle, Sparkles, Tags, CheckCircle, AlertTriangle, RotateCcw, BookOpenText, ExternalLink, Trash2, Eye, Edit, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { ToastProps } from '@/components/ui/toast';
+// import type { ToastProps } from '@/components/ui/toast'; // Not used directly
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +39,6 @@ interface QuizzesManagerProps {
 
 const QUIZZES_STORAGE_KEY_BASE = 'studySmartsQuizzes';
 
-// Re-using FlashcardComponent and CustomContextMenu from the original QuizzesPage with minor adjustments if needed
 interface FlashcardComponentProps {
   flashcard: Flashcard;
   onTextSelect: (text: string, contextText: string) => void;
@@ -58,56 +58,121 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
   const backFaceRef = useRef<HTMLDivElement>(null);
 
   const adjustHeight = useCallback(() => {
-    if (cardInnerRef.current && frontFaceRef.current && backFaceRef.current) {
-      const frontHeight = frontFaceRef.current.scrollHeight;
-      const backHeight = backFaceRef.current.scrollHeight;
-      cardInnerRef.current.style.height = `${Math.max(frontHeight, backHeight, 150)}px`;
-    }
+    requestAnimationFrame(() => { // Use requestAnimationFrame for smoother updates
+      if (cardInnerRef.current && frontFaceRef.current && backFaceRef.current) {
+        const frontHeight = frontFaceRef.current.scrollHeight;
+        const backHeight = backFaceRef.current.scrollHeight;
+        const maxHeight = Math.max(frontHeight, backHeight, 150); // Min height 150px
+        cardInnerRef.current.style.height = `${maxHeight}px`;
+      }
+    });
   }, []);
 
   useEffect(() => {
     adjustHeight();
+    // Optional: Re-adjust on flip if content height might change significantly
+  }, [flashcard, isFlipped, adjustHeight]);
+
+  useEffect(() => {
+    // Adjust height initially and on resize
+    adjustHeight();
     window.addEventListener('resize', adjustHeight);
     return () => window.removeEventListener('resize', adjustHeight);
-  }, [flashcard, isFlipped, adjustHeight]);
-  
-  useEffect(() => {adjustHeight();}, [isFlipped, adjustHeight]);
+  }, [adjustHeight]);
 
   const handleMouseUpCapture = (contextText: string) => (event: React.MouseEvent) => {
     const selection = window.getSelection()?.toString().trim();
-    if (selection) onTextSelect(selection, contextText);
+    if (selection) {
+      event.stopPropagation(); // Prevent card flip on text selection
+      onTextSelect(selection, contextText);
+    }
   };
 
   const handleContextMenuCapture = (contextText: string) => (event: React.MouseEvent) => {
     const selection = window.getSelection()?.toString().trim();
-    if (selection) { event.preventDefault(); onContextMenuOpen(event.clientX, event.clientY, contextText); }
+    if (selection) {
+      event.preventDefault();
+      event.stopPropagation();
+      onContextMenuOpen(event.clientX, event.clientY, contextText);
+    }
   };
-  
+
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' || event.key === ' ') { setIsFlipped(!isFlipped); event.preventDefault(); }
   };
 
+  const handleCardClick = (event: React.MouseEvent) => {
+    // Prevent flip if user is selecting text
+    if (window.getSelection()?.toString().trim()) {
+      return;
+    }
+    setIsFlipped(!isFlipped);
+  };
+
+  // Neobrutalist Flashcard Styles
   const cardStyle: CSSProperties = { width: '100%', minHeight: '150px', perspective: '1000px' };
   const cardInnerStyle: CSSProperties = { position: 'relative', width: '100%', height: '100%', textAlign: 'initial', transformStyle: 'preserve-3d', transition: 'transform 0.6s', transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' };
-  const faceStyle: CSSProperties = { position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '1.5rem', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', boxSizing: 'border-box', overflowY: 'auto' };
-  const frontStyle: CSSProperties = { ...faceStyle, background: 'hsl(var(--card))', color: 'hsl(var(--card-foreground))', zIndex: 2 };
-  const backStyle: CSSProperties = { ...faceStyle, background: 'hsl(var(--secondary))', color: 'hsl(var(--secondary-foreground))', transform: 'rotateY(180deg)' };
+  const faceBaseStyle = `absolute w-full h-full backface-hidden flex flex-col justify-between p-4 border-3 border-border shadow-neo-md rounded-none box-sizing-border-box overflow-y-auto`; // Neobrutalist base: border-3, rounded-none, shadow-neo-md
+  const frontFaceStyle = `${faceBaseStyle} bg-card text-card-foreground z-2`;
+  const backFaceStyle = `${faceBaseStyle} bg-secondary text-secondary-foreground transform rotate-y-180`;
 
   return (
-    <div className="w-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg" style={cardStyle} onClick={() => setIsFlipped(!isFlipped)} onKeyDown={handleKeyDown} tabIndex={0} role="button" aria-pressed={isFlipped} aria-label={`Flashcard: ${flashcard.question}. Click or press Enter to flip.`}>
+    <div
+      className="w-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-none" // rounded-none
+      style={cardStyle}
+      onClick={handleCardClick}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="button"
+      aria-pressed={isFlipped}
+      aria-label={`Flashcard: ${flashcard.question}. Click or press Enter to flip.`}
+    >
       <div ref={cardInnerRef} style={cardInnerStyle}>
-        <div ref={frontFaceRef} style={frontStyle} onMouseUpCapture={handleMouseUpCapture(flashcard.question)} onContextMenuCapture={handleContextMenuCapture(flashcard.question)}>
-          <div><p className="text-xs text-muted-foreground mb-1">ID: {flashcard.id}</p><h3 className="text-lg font-semibold mt-1 mb-3 break-words select-text">{flashcard.question}</h3></div>
-          <div className="flex justify-between items-center mt-auto pt-2"><Badge className={cn(difficultyColors[flashcard.difficulty], "text-xs")}>{flashcard.difficulty}</Badge><RotateCcw className="h-4 w-4 text-muted-foreground" aria-hidden="true" /></div>
+        {/* Front Face */}
+        <div
+          ref={frontFaceRef}
+          className={frontFaceStyle}
+          onMouseUpCapture={handleMouseUpCapture(flashcard.question)}
+          onContextMenuCapture={handleContextMenuCapture(flashcard.question)}
+          style={{ backfaceVisibility: 'hidden' }} // Explicit style for compatibility
+        >
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">ID: {flashcard.id}</p>
+            <h3 className="text-lg font-bold mt-1 mb-3 break-words select-text">{flashcard.question}</h3>
+          </div>
+          <div className="flex justify-between items-center mt-auto pt-2">
+            <Badge className={cn(difficultyColors[flashcard.difficulty], "text-xs border-2 border-border shadow-neo-sm")}>{flashcard.difficulty}</Badge>
+            <RotateCcw className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          </div>
         </div>
-        <div ref={backFaceRef} style={backStyle} onMouseUpCapture={handleMouseUpCapture(flashcard.answer)} onContextMenuCapture={handleContextMenuCapture(flashcard.answer)}>
-          <div><h4 className="text-md font-semibold mb-2">Answer:</h4><div className="text-sm leading-relaxed break-words select-text"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{flashcard.answer}</ReactMarkdown></div></div>
-          {flashcard.tags && flashcard.tags.length > 0 && (<div className="flex items-center gap-1 mt-auto pt-2"><Tags className="h-3 w-3 self-center" aria-hidden="true"/><span className="sr-only">Tags:</span>{flashcard.tags.map(tag => (<Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>))}</div>)}
+        {/* Back Face */}
+        <div
+          ref={backFaceRef}
+          className={backFaceStyle}
+          onMouseUpCapture={handleMouseUpCapture(flashcard.answer)}
+          onContextMenuCapture={handleContextMenuCapture(flashcard.answer)}
+          style={{ backfaceVisibility: 'hidden' }} // Explicit style for compatibility
+        >
+          <div>
+            <h4 className="text-md font-bold mb-2">Answer:</h4>
+            <div className="text-sm leading-relaxed break-words select-text prose prose-sm dark:prose-invert max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{flashcard.answer}</ReactMarkdown>
+            </div>
+          </div>
+          {flashcard.tags && flashcard.tags.length > 0 && (
+            <div className="flex items-center flex-wrap gap-1 mt-auto pt-2">
+              <Tags className="h-3 w-3 self-center" aria-hidden="true"/><span className="sr-only">Tags:</span>
+              {flashcard.tags.map(tag => (
+                <Badge key={tag} variant="outline" className="text-xs border-2 border-border shadow-neo-sm">{tag}</Badge>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 
 interface CustomContextMenuProps { x: number; y: number; onExplain: () => void; onClose: () => void; menuRef: React.RefObject<HTMLDivElement>; }
 function CustomContextMenu({ x, y, onExplain, onClose, menuRef }: CustomContextMenuProps) {
@@ -116,7 +181,7 @@ function CustomContextMenu({ x, y, onExplain, onClose, menuRef }: CustomContextM
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose, menuRef]);
-  return (<div ref={menuRef} style={{ top: y, left: x, position: 'fixed', zIndex: 1000 }} className="bg-popover border border-border rounded-md shadow-lg p-1 min-w-[180px]" role="menu"><Button variant="ghost" className="w-full justify-start px-2 py-1.5 text-sm h-auto" onClick={onExplain} role="menuitem"><BookOpenText className="mr-2 h-4 w-4" aria-hidden="true" /> Explain Selection</Button></div>);
+  return (<div ref={menuRef} style={{ top: y, left: x, position: 'fixed', zIndex: 1000 }} className="bg-popover border-3 border-border rounded-none shadow-neo-md p-1 min-w-[180px]" role="menu"><Button variant="ghost" className="w-full justify-start px-2 py-1.5 text-sm h-auto shadow-none border-transparent active:shadow-none" onClick={onExplain} role="menuitem"><BookOpenText className="mr-2 h-4 w-4" aria-hidden="true" /> Explain Selection</Button></div>); // Neobrutalist Context Menu
 }
 
 
@@ -126,7 +191,7 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
   const [quizName, setQuizName] = useState('');
   
   const [storedQuizzes, setStoredQuizzes] = useState<StoredQuiz[]>([]);
-  const [currentFlashcards, setCurrentFlashcards] = useState<Flashcard[]>([]); // For new or viewed quiz
+  const [currentFlashcards, setCurrentFlashcards] = useState<Flashcard[]>([]); 
   const [viewingQuiz, setViewingQuiz] = useState<StoredQuiz | null>(null);
 
   const [isGeneratingQuiz, startGeneratingQuizTransition] = useTransition();
@@ -229,7 +294,7 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
     }
   };
 
-  const handleFileRead = (content: string) => { setCourseMaterial(content); };
+  const handleFileRead = (content: string, fileName?: string) => { setCourseMaterial(content); }; // Added fileName handling
   const handleTextSelection = (text: string, context: string) => { setSelectedText(text); setSelectedTextContext(context); };
   const handleContextMenuOpen = (x: number, y: number, context: string) => { if (selectedText) { setContextMenuPosition({ x, y }); setSelectedTextContext(context); setShowContextMenu(true); }};
   const handleCloseContextMenu = useCallback(() => { setShowContextMenu(false); }, []);
@@ -250,8 +315,8 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
   
   const handleViewQuiz = (quiz: StoredQuiz) => {
     setViewingQuiz(quiz);
-    setCurrentFlashcards(quiz.flashcards); // Display this quiz's flashcards
-    setCourseMaterial(''); // Clear generation form
+    setCurrentFlashcards(quiz.flashcards); 
+    setCourseMaterial(''); 
     setQuizName('');
   };
   
@@ -281,33 +346,33 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
   const displayQuizName = viewingQuiz ? viewingQuiz.name : quizName;
 
   return (
-    <div className="space-y-6" onMouseUp={() => { if (!window.getSelection()?.toString().trim()) setSelectedText(null); }}>
+    <div className="space-y-6" onMouseUpCapture={() => { if (!window.getSelection()?.toString().trim()) setSelectedText(null); }}> {/* Use capture phase */}
       {!viewingQuiz && currentFlashcards.length === 0 && (
-        <Card className="shadow-lg">
+        <Card className="shadow-neo-lg">
           <CardHeader>
             <div className="flex items-center gap-3"><HelpCircle className="h-8 w-8 text-primary" /><CardTitle className="text-2xl font-bold">Generate New Quiz for "{subjectName}"</CardTitle></div>
             <CardDescription>Input material, name your quiz, and set length.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <FileUpload onFileRead={handleFileRead} />
-            <div><Label htmlFor="courseMaterialTextQuiz">Course Material (Paste)</Label><Textarea id="courseMaterialTextQuiz" placeholder="Paste material..." value={courseMaterial} onChange={(e) => setCourseMaterial(e.target.value)} rows={8} className="min-h-[150px]" aria-label="Course material for quiz"/></div>
-            <div><Label htmlFor="quizNameInput">Quiz Name</Label><Input id="quizNameInput" placeholder="e.g., Chapter 1 Review" value={quizName} onChange={(e) => setQuizName(e.target.value)} aria-label="Quiz name"/></div>
-            <div><Label htmlFor="quizLengthInput">Number of Flashcards (1-20)</Label><Input id="quizLengthInput" type="number" value={quizLength} onChange={(e) => setQuizLength(Math.max(1, Math.min(20, parseInt(e.target.value,10) || 1)))} min="1" max="20" aria-label="Number of flashcards"/></div>
+            <div><Label htmlFor="courseMaterialTextQuiz" className="font-bold">Course Material (Paste)</Label><Textarea id="courseMaterialTextQuiz" placeholder="Paste material..." value={courseMaterial} onChange={(e) => setCourseMaterial(e.target.value)} rows={8} className="min-h-[150px]" aria-label="Course material for quiz"/></div>
+            <div><Label htmlFor="quizNameInput" className="font-bold">Quiz Name</Label><Input id="quizNameInput" placeholder="e.g., Chapter 1 Review" value={quizName} onChange={(e) => setQuizName(e.target.value)} aria-label="Quiz name"/></div>
+            <div><Label htmlFor="quizLengthInput" className="font-bold">Number of Flashcards (1-20)</Label><Input id="quizLengthInput" type="number" value={quizLength} onChange={(e) => setQuizLength(Math.max(1, Math.min(20, parseInt(e.target.value,10) || 1)))} min="1" max="20" aria-label="Number of flashcards"/></div>
           </CardContent>
           <CardFooter><Button onClick={handleGenerateQuiz} disabled={isGeneratingQuiz || !courseMaterial.trim() || !quizName.trim()}>{isGeneratingQuiz ? <LoadingSpinner className="mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}Generate Quiz</Button></CardFooter>
         </Card>
       )}
 
-      {isGeneratingQuiz && <Card><CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]"><LoadingSpinner size={48} /><p className="mt-4 text-muted-foreground">Generating quiz...</p></CardContent></Card>}
+      {isGeneratingQuiz && <Card className="shadow-neo-md"><CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]"><LoadingSpinner size={48} /><p className="mt-4 text-muted-foreground">Generating quiz...</p></CardContent></Card>}
 
       {!isGeneratingQuiz && displayFlashcards.length > 0 && (
-        <Card className="shadow-lg">
+        <Card className="shadow-neo-lg">
           <CardHeader>
              <div className="flex justify-between items-center">
-                <CardTitle className="text-xl font-semibold">{viewingQuiz ? `Viewing Quiz: ${displayQuizName}` : `New Quiz Preview: ${displayQuizName}`} ({displayFlashcards.length} Cards)</CardTitle>
+                <CardTitle className="text-xl font-bold">{viewingQuiz ? `Viewing Quiz: ${displayQuizName}` : `New Quiz Preview: ${displayQuizName}`} ({displayFlashcards.length} Cards)</CardTitle>
                 {!viewingQuiz && currentFlashcards.length > 0 && (
                     <div className="flex gap-2">
-                        <Button onClick={handleSaveGeneratedQuiz} className="bg-green-600 hover:bg-green-700"><Save className="mr-2 h-4 w-4" /> Save This Quiz</Button>
+                        <Button onClick={handleSaveGeneratedQuiz} className="bg-primary hover:bg-primary/90"><Save className="mr-2 h-4 w-4" /> Save This Quiz</Button>
                         <Button variant="outline" onClick={() => {setCurrentFlashcards([]); setCourseMaterial(''); setQuizName('');}}><Trash2 className="mr-2 h-4 w-4" /> Discard Preview</Button>
                     </div>
                 )}
@@ -324,17 +389,17 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
       )}
 
       {!isGeneratingQuiz && !viewingQuiz && currentFlashcards.length === 0 && storedQuizzes.length > 0 && (
-         <Card className="shadow-md">
+         <Card className="shadow-neo-md">
           <CardHeader>
-            <CardTitle className="text-xl font-semibold">Saved Quizzes for "{subjectName}" ({storedQuizzes.length})</CardTitle>
+            <CardTitle className="text-xl font-bold">Saved Quizzes for "{subjectName}" ({storedQuizzes.length})</CardTitle>
             <CardDescription>Select a quiz to view or delete.</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
               {storedQuizzes.map(quiz => (
-                <li key={quiz.id} className="p-4 border rounded-md hover:shadow-md transition-shadow flex justify-between items-center">
+                <li key={quiz.id} className="p-4 border-2 border-border rounded-none hover:shadow-neo-md transition-shadow flex justify-between items-center bg-card shadow-neo-sm">
                   <div>
-                    <h3 className="font-medium">{quiz.name} ({quiz.flashcards.length} cards)</h3>
+                    <h3 className="font-bold">{quiz.name} ({quiz.flashcards.length} cards)</h3>
                     <p className="text-xs text-muted-foreground">Created: {new Date(quiz.createdAt).toLocaleDateString()}</p>
                   </div>
                   <div className="flex gap-2">
@@ -347,9 +412,9 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
                                 <Trash2 className="mr-1 h-4 w-4" /> Delete
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="shadow-neo-lg border-3 rounded-none">
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Quiz: {quiz.name}?</AlertDialogTitle>
+                            <AlertDialogTitle className="font-bold">Delete Quiz: {quiz.name}?</AlertDialogTitle>
                             <AlertDialogDescription>This action cannot be undone. This will permanently delete this quiz.</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -366,7 +431,7 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
         </Card>
       )}
       {!isGeneratingQuiz && !viewingQuiz && currentFlashcards.length === 0 && storedQuizzes.length === 0 && (
-            <Card>
+            <Card className="shadow-neo-md">
                 <CardContent className="p-6 text-center">
                     <p className="text-muted-foreground">No quizzes found for "{subjectName}". Generate a new quiz above.</p>
                 </CardContent>
@@ -375,7 +440,8 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
 
 
       {showContextMenu && selectedText && <CustomContextMenu x={contextMenuPosition.x} y={contextMenuPosition.y} onExplain={handleExplainSelectedText} onClose={handleCloseContextMenu} menuRef={contextMenuRef}/>}
-      <Dialog open={showExplanationPopup} onOpenChange={setShowExplanationPopup}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Explanation for: "{selectedText}"</DialogTitle><DialogDescription>AI-generated explanation.</DialogDescription></DialogHeader><div className="py-4 max-h-[60vh] overflow-y-auto">{isFetchingExplanation && <div className="flex justify-center items-center min-h-[100px]"><LoadingSpinner size={32}/> <span className="ml-2">Fetching...</span></div>}{explanationData && !isFetchingExplanation && (<div className="space-y-3 prose prose-sm sm:prose-base dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{explanationData.explanation}</ReactMarkdown>{explanationData.relatedLinks && explanationData.relatedLinks.length > 0 && (<div><h4 className="font-semibold mt-4 mb-2 text-base">Further Reading:</h4><ul className="list-disc pl-5 space-y-1">{explanationData.relatedLinks.map(link => (<li key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{link.title} <ExternalLink className="inline h-3 w-3 ml-1"/></a></li>))}</ul></div>)}</div>)}</div><DialogFooter><Button onClick={() => setShowExplanationPopup(false)}>Close</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={showExplanationPopup} onOpenChange={setShowExplanationPopup}><DialogContent className="sm:max-w-lg border-3 border-border shadow-neo-lg rounded-none bg-card"><DialogHeader className="border-b-2 border-border pb-3"><DialogTitle className="font-bold">Explanation for: "{selectedText}"</DialogTitle><DialogDescription>AI-generated explanation.</DialogDescription></DialogHeader><div className="py-4 max-h-[60vh] overflow-y-auto">{isFetchingExplanation && <div className="flex justify-center items-center min-h-[100px]"><LoadingSpinner size={32}/> <span className="ml-2">Fetching...</span></div>}{explanationData && !isFetchingExplanation && (<div className="space-y-3 prose prose-sm sm:prose-base dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{explanationData.explanation}</ReactMarkdown>{explanationData.relatedLinks && explanationData.relatedLinks.length > 0 && (<div><h4 className="font-semibold mt-4 mb-2 text-base">Further Reading:</h4><ul className="list-disc pl-5 space-y-1">{explanationData.relatedLinks.map(link => (<li key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">{link.title} <ExternalLink className="inline h-3 w-3 ml-1"/></a></li>))}</ul></div>)}</div>)}</div><DialogFooter><Button variant="outline" onClick={() => setShowExplanationPopup(false)}>Close</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }
+

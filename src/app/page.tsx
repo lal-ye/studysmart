@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Folders, PlusCircle, BookOpen, Trash2, ArrowRight } from "lucide-react";
-import type { Subject } from '@/lib/actions'; // Assuming Subject type is in actions
+import type { Subject } from '@/lib/actions'; 
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import {
   AlertDialog,
@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
     startCreatingSubjectTransition(() => {
       const newSubject: Subject = {
-        id: Date.now().toString(), // Simple unique ID
+        id: Date.now().toString(), 
         name: newSubjectName.trim(),
         createdAt: new Date().toISOString(),
       };
@@ -78,26 +78,22 @@ export default function DashboardPage() {
   };
   
   const handleDeleteSubject = (subjectId: string, subjectName: string) => {
-    // Also delete associated notes, quizzes, and exams from localStorage
     const updatedSubjects = subjects.filter(s => s.id !== subjectId);
     setSubjects(updatedSubjects);
     localStorage.setItem(SUBJECTS_STORAGE_KEY, JSON.stringify(updatedSubjects));
 
-    // Remove notes associated with this subject
     const allNotesString = localStorage.getItem('studySmartsNotes');
     if (allNotesString) {
       const allNotes = JSON.parse(allNotesString);
       const filteredNotes = allNotes.filter((note: any) => note.subjectId !== subjectId);
       localStorage.setItem('studySmartsNotes', JSON.stringify(filteredNotes));
     }
-    // Remove quizzes associated with this subject
     const allQuizzesString = localStorage.getItem('studySmartsQuizzes');
     if (allQuizzesString) {
       const allQuizzes = JSON.parse(allQuizzesString);
       const filteredQuizzes = allQuizzes.filter((quiz: any) => quiz.subjectId !== subjectId);
       localStorage.setItem('studySmartsQuizzes', JSON.stringify(filteredQuizzes));
     }
-    // Remove exam history associated with this subject
     const examHistoryString = localStorage.getItem('studySmartsExamHistory');
     if (examHistoryString) {
         const examHistory = JSON.parse(examHistoryString);
@@ -120,7 +116,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <Card className="shadow-lg">
+      <Card className="shadow-neo-lg"> {/* Applied Neobrutalist shadow */}
         <CardHeader>
           <div className="flex items-center gap-4">
             <Folders className="h-10 w-10 text-primary" />
@@ -134,11 +130,11 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="newSubjectName" className="text-base">Create New Subject</Label>
+            <Label htmlFor="newSubjectName" className="text-base font-bold">Create New Subject</Label> {/* Added font-bold */}
             <div className="flex items-center gap-2 mt-1">
               <Input
                 id="newSubjectName"
-                placeholder="e.g., Mathematics, History 101"
+                placeholder="e.g., Quantum Physics, Art History" // Updated placeholder
                 value={newSubjectName}
                 onChange={(e) => setNewSubjectName(e.target.value)}
                 className="flex-grow"
@@ -156,19 +152,19 @@ export default function DashboardPage() {
       {subjects.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {subjects.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((subject) => (
-            <Card key={subject.id} className="shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col">
+            <Card key={subject.id} className="shadow-neo-md hover:shadow-neo-lg transition-all duration-150 ease-out flex flex-col hover:-translate-x-0.5 hover:-translate-y-0.5"> {/* Applied shadow and hover effect */}
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-xl">{subject.name}</CardTitle>
                    <AlertDialog>
                     <AlertDialogTrigger asChild>
-                       <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive -mt-2 -mr-2" aria-label={`Delete subject ${subject.name}`}>
+                       <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive -mt-2 -mr-2 shadow-none border-transparent active:shadow-none" aria-label={`Delete subject ${subject.name}`}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="shadow-neo-lg border-3"> {/* Neobrutalist dialog */}
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogTitle className="font-bold">Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
                           This action will permanently delete the subject "{subject.name}" and all its associated notes, quizzes, and exams. This cannot be undone.
                         </AlertDialogDescription>
@@ -201,7 +197,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         !isLoading && (
-          <Card className="shadow-md">
+          <Card className="shadow-neo-md"> {/* Applied shadow */}
             <CardContent className="p-10 text-center">
               <BookOpen className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <p className="text-xl text-muted-foreground">No subjects yet.</p>

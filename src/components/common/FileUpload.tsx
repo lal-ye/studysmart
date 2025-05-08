@@ -53,22 +53,21 @@ export default function FileUpload({
       const cachedContent = localStorage.getItem(cacheKeyToLoad);
       if (cachedContent) {
         onFileRead(cachedContent, nameOfFile);
-        setFileName(nameOfFile); // Ensure fileName is updated when loading from cache
-        // Toast notification for loading from cache removed as per user request.
+        setFileName(nameOfFile); 
+        // No toast for cache loading
       } else {
         setToastArgs({
           title: "Cache Miss",
           description: `Could not find ${nameOfFile} in cache. Please upload again.`,
           variant: 'destructive'
         });
-        // Remove from cachedFiles list if it's not actually in localStorage
         setCachedFiles(prev => prev.filter(f => f.cacheKey !== cacheKeyToLoad));
       }
   }, [onFileRead]);
 
 
   useEffect(() => {
-    if (pdfCacheKey && fileName) { // Ensure fileName is also set before trying to load from cache
+    if (pdfCacheKey && fileName) { 
       loadFileFromCache(pdfCacheKey, fileName);
     }
   }, [pdfCacheKey, fileName, loadFileFromCache]);
@@ -87,12 +86,12 @@ export default function FileUpload({
       }
 
       const currentFileName = file.name;
-      setFileName(currentFileName); // Set fileName immediately
+      setFileName(currentFileName); 
       const cacheKey = `pdf-cache-${currentFileName}-${file.size}`; 
 
       const cachedContent = localStorage.getItem(cacheKey);
       if (cachedContent) {
-        setPdfCacheKey(cacheKey); // This will trigger the useEffect to load from cache via loadFileFromCache
+        setPdfCacheKey(cacheKey); 
         return; 
       }
 
@@ -130,7 +129,7 @@ export default function FileUpload({
                 }
                 return prevFiles;
               });
-              setPdfCacheKey(cacheKey); // This will trigger cache loading effect
+              setPdfCacheKey(cacheKey); 
               setToastArgs({
                 title: 'PDF Processed & Cached',
                 description: `Text extracted from ${currentFileName} and loaded. It is now cached.`,
@@ -173,8 +172,8 @@ export default function FileUpload({
   };
 
   const handleCachedFileSelect = (cacheKey: string, name: string) => {
-    setFileName(name); // Set fileName first
-    setPdfCacheKey(cacheKey); // Then set pdfCacheKey to trigger useEffect
+    setFileName(name); 
+    setPdfCacheKey(cacheKey); 
   };
 
   const handleRemoveCachedFile = (cacheKeyToRemove: string, name: string) => {
@@ -193,7 +192,7 @@ export default function FileUpload({
 
   return (
     <div className="space-y-3">
-      <Label htmlFor="courseMaterialFile">Upload Course Material ({acceptedFileTypes})</Label>
+      <Label htmlFor="courseMaterialFile" className="font-bold">Upload Course Material ({acceptedFileTypes})</Label>
 
       <div className="flex items-center gap-2">
         <Input
@@ -201,7 +200,7 @@ export default function FileUpload({
           type="file"
           accept={acceptedFileTypes}
           onChange={handleFileChange}
-          className="flex-grow"
+          className="flex-grow file:mr-4 file:py-2 file:px-4 file:rounded-none file:border-2 file:border-border file:text-sm file:font-bold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 file:shadow-neo-sm" // Added Neobrutalist file button styles
           disabled={isProcessing}
           aria-describedby="file-upload-description"
         />
@@ -212,7 +211,7 @@ export default function FileUpload({
             onClick={() => clearFile()}
             aria-label="Clear selected file"
             disabled={isProcessing}
-            className="text-muted-foreground hover:text-destructive"
+            className="text-muted-foreground hover:text-destructive shadow-none border-transparent active:shadow-none"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -237,17 +236,17 @@ export default function FileUpload({
 
       {cachedFiles.length > 0 && (
         <div className="pt-2">
-          <Label className="text-sm font-medium">Cached Documents</Label>
+          <Label className="text-sm font-bold">Cached Documents</Label>
           <ul className="mt-1 space-y-1.5 max-h-40 overflow-y-auto pr-2">
             {cachedFiles.map((file) => (
-              <li key={file.cacheKey} className="flex items-center justify-between p-2.5 border rounded-md bg-muted/30 hover:bg-muted/50 transition-colors">
+              <li key={file.cacheKey} className="flex items-center justify-between p-2.5 border-2 border-border rounded-none bg-muted/30 hover:bg-muted/50 transition-colors shadow-neo-sm">
                 <button
                   onClick={() => handleCachedFileSelect(file.cacheKey, file.name)}
-                  className="text-sm text-left flex-grow hover:underline focus:outline-none focus:ring-1 focus:ring-primary rounded-sm px-1"
+                  className="text-sm text-left flex-grow hover:underline focus:outline-none focus:ring-1 focus:ring-primary rounded-sm px-1 font-bold" // Added font-bold
                   disabled={isProcessing}
                   aria-label={`Load ${file.name} from cache`}
                 >
-                  {file.name}
+                  <FileUp className="inline h-4 w-4 mr-2" /> {file.name}
                 </button>
                 <Button
                     variant="ghost"
@@ -255,7 +254,7 @@ export default function FileUpload({
                     onClick={() => handleRemoveCachedFile(file.cacheKey, file.name)}
                     aria-label={`Remove ${file.name} from cache`}
                     disabled={isProcessing}
-                    className="text-muted-foreground hover:text-destructive h-7 w-7 ml-2"
+                    className="text-muted-foreground hover:text-destructive h-7 w-7 ml-2 shadow-none border-transparent active:shadow-none"
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>

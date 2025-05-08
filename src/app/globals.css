@@ -4,125 +4,178 @@
 
 @layer base {
   :root {
-    --background: 226 39% 81%; /* Stardust Evening */
-    --foreground: 226 15% 25%; /* Darker Stardust hue for text */
+    /* Neobrutalist Color Palette */
+    /* Pale Whale for background */
+    --background: 197 40% 78%; 
+    /* Dark color for text on Pale Whale */
+    --foreground: 197 20% 15%; 
 
-    --card: 226 39% 81%; /* Same as background */
-    --card-foreground: 226 15% 25%; /* Same as foreground */
+    /* Moonraker for cards */
+    --card: 243 37% 76%;
+    /* Dark color for text on Moonraker */
+    --card-foreground: 243 15% 15%;
 
-    --popover: 226 39% 81%; /* Same as background */
-    --popover-foreground: 226 15% 25%; /* Same as foreground */
+    /* Popover can match card or background */
+    --popover: 243 37% 76%; /* Moonraker */
+    --popover-foreground: 243 15% 15%;
 
-    --primary: 178 50% 40%; /* Darker Pastel Turquoise/Teal */
-    --primary-foreground: 0 0% 98%; /* White */
+    /* Cabbage for primary elements */
+    --primary: 159 59% 73%;
+    /* Dark color for text on Cabbage */
+    --primary-foreground: 159 40% 10%;
 
-    --secondary: 226 30% 70%; /* Lighter Stardust hue */
-    --secondary-foreground: 226 15% 20%; /* Dark text on secondary */
+    /* A slightly desaturated Pale Whale for secondary */
+    --secondary: 197 30% 70%; 
+    --secondary-foreground: 197 15% 15%;
 
-    --muted: 226 35% 78%; /* Subtler Stardust */
-    --muted-foreground: 226 15% 45%; /* Muted text */
+    /* Muted tones based on background */
+    --muted: 197 40% 85%; /* Lighter Pale Whale */
+    --muted-foreground: 197 25% 45%;
 
-    --accent: 178 50% 40%; /* Same as primary */
-    --accent-foreground: 0 0% 98%; /* Same as primary-foreground */
+    /* Accent can be same as primary or a new distinct color */
+    --accent: 159 59% 73%; /* Cabbage */
+    --accent-foreground: 159 40% 10%;
 
-    --destructive: 0 75% 55%; /* Keeping existing destructive colors */
-    --destructive-foreground: 0 0% 98%;
+    /* Destructive - standard red, but ensure high contrast */
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%; /* White */
 
-    --border: 226 30% 75%;
-    --input: 226 30% 75%;
-    --ring: 178 50% 50%; /* Slightly brighter primary for focus rings */
+    /* Borders are key in Neobrutalism - typically black */
+    --border: 0 0% 8%; /* Blackish for high contrast */
+    --input: 0 0% 8%; /* Input border */
+    
+    /* Ring for focus states - can use primary */
+    --ring: 159 59% 65%; /* Slightly darker Cabbage for ring */
 
-    --radius: 0.5rem;
+    /* Neobrutalism often uses sharper corners or slightly rounded */
+    --radius: 0.25rem; /* default was 0.5rem */
 
-    /* Adjusted chart colors to harmonize with the new theme */
-    --chart-1: 178 50% 45%; /* Primary chart color (Teal) */
-    --chart-2: 226 50% 65%; /* Stardust blue chart color */
-    --chart-3: 40 70% 60%;  /* Warmer complementary (Orange/Yellow) */
-    --chart-4: 200 60% 50%; /* Another blue variant */
-    --chart-5: 300 50% 60%; /* A purple variant */
+    /* Chart colors - adjust to fit the new palette */
+    --chart-1: 159 59% 65%; /* Based on Cabbage */
+    --chart-2: 243 37% 68%; /* Based on Moonraker */
+    --chart-3: 30 80% 60%;  /* A contrasting warm color (e.g., orange) */
+    --chart-4: 197 40% 70%; /* Based on Pale Whale (secondary-ish) */
+    --chart-5: 270 50% 70%; /* A contrasting purple/pink */
 
-    /* Sidebar specific colors for light mode */
-    --sidebar-background: 226 35% 79%;
-    --sidebar-foreground: 226 15% 30%;
-    --sidebar-primary: 178 50% 40%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 226 30% 76%;
-    --sidebar-accent-foreground: 226 15% 20%;
-    --sidebar-border: 226 25% 73%;
-    --sidebar-ring: 178 50% 50%;
+    /* Sidebar specific colors - ensure they fit Neobrutalism */
+    /* Sidebar could be a very dark contrast or one of the theme colors */
+    --sidebar-background: 197 30% 20%; /* Darker version of Pale Whale or black */
+    --sidebar-foreground: 197 40% 85%; /* Light text */
+    --sidebar-primary: 159 59% 73%; /* Cabbage */
+    --sidebar-primary-foreground: 159 40% 10%;
+    --sidebar-accent: 243 37% 76%; /* Moonraker */
+    --sidebar-accent-foreground: 243 15% 15%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 159 59% 65%;
   }
 
   .dark {
-    --background: 226 10% 15%; /* Very dark Stardust hue */
-    --foreground: 226 30% 85%; /* Light Stardust hue for text */
+    /* Dark Mode Neobrutalist Palette */
+    --background: 197 20% 10%; /* Very dark Pale Whale */
+    --foreground: 197 40% 88%; /* Light Pale Whale text */
 
-    --card: 226 10% 18%; /* Slightly lighter than dark bg */
-    --card-foreground: 226 30% 85%;
+    --card: 243 25% 18%; /* Dark Moonraker */
+    --card-foreground: 243 37% 85%; /* Light Moonraker text */
 
-    --popover: 226 10% 12%; /* Slightly darker than dark bg */
-    --popover-foreground: 226 30% 85%;
+    --popover: 243 25% 15%; 
+    --popover-foreground: 243 37% 85%;
 
-    --primary: 178 45% 55%; /* Brighter Pastel Turquoise/Teal for dark mode */
-    --primary-foreground: 0 0% 98%; /* White text on primary */
+    --primary: 159 65% 65%; /* Brighter Cabbage */
+    --primary-foreground: 159 40% 8%; /* Very dark for contrast */
 
-    --secondary: 226 15% 30%; /* Darker Stardust for secondary elements */
-    --secondary-foreground: 226 30% 90%; /* Light text on dark secondary */
+    --secondary: 197 30% 25%; /* Darker Pale Whale for secondary */
+    --secondary-foreground: 197 40% 90%;
 
-    --muted: 226 10% 25%;
-    --muted-foreground: 226 25% 70%;
+    --muted: 197 20% 20%;
+    --muted-foreground: 197 30% 65%;
 
-    --accent: 178 45% 55%; /* Same as dark primary */
-    --accent-foreground: 0 0% 98%; /* Same as dark primary-foreground */
+    --accent: 159 65% 65%; /* Brighter Cabbage */
+    --accent-foreground: 159 40% 8%;
 
-    --destructive: 0 60% 50%; /* Adjusted destructive for dark */
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 226 10% 22%;
-    --input: 226 10% 22%;
-    --ring: 178 45% 65%; /* Brighter primary ring for dark mode */
+    --border: 0 0% 88%; /* Light border for dark mode on dark elements or black for global */
+    --input: 0 0% 88%; 
     
-    /* Adjusted chart colors for dark mode */
-    --chart-1: 178 50% 60%;
-    --chart-2: 226 40% 70%;
-    --chart-3: 40 60% 70%;
-    --chart-4: 200 50% 65%;
-    --chart-5: 300 40% 70%;
+    --ring: 159 65% 55%;
 
-    /* Sidebar specific colors for dark mode */
-    --sidebar-background: 226 10% 10%;
-    --sidebar-foreground: 226 30% 80%;
-    --sidebar-primary: 178 45% 55%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 226 10% 20%;
-    --sidebar-accent-foreground: 226 30% 90%;
-    --sidebar-border: 226 10% 17%;
-    --sidebar-ring: 178 45% 65%;
+    /* Chart colors for dark mode */
+    --chart-1: 159 65% 70%;
+    --chart-2: 243 40% 75%;
+    --chart-3: 30 70% 70%;
+    --chart-4: 197 50% 80%;
+    --chart-5: 270 60% 78%;
+    
+    /* Dark Sidebar */
+    --sidebar-background: 0 0% 5%; /* Almost black */
+    --sidebar-foreground: 0 0% 90%; /* Light text */
+    --sidebar-primary: 159 65% 65%; /* Cabbage */
+    --sidebar-primary-foreground: 159 40% 8%;
+    --sidebar-accent: 243 25% 22%; /* Dark Moonraker */
+    --sidebar-accent-foreground: 243 37% 88%;
+    --sidebar-border: 0 0% 12%;
+    --sidebar-ring: 159 65% 55%;
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border; /* Default border color for elements */
   }
   body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground antialiased font-mono; /* Ensure font-mono from Tailwind config is used */
+    font-feature-settings: "rlig" 1, "calt" 1; /* Keep ligatures if desired with mono */
+  }
+  /* Consistent styling for Neobrutalist borders and shadows on common elements */
+  /* These are examples; apply more specifically via utility classes or component styles */
+  .neo-card {
+    @apply border-3 shadow-neo-md;
+  }
+  .neo-button {
+    @apply border-2 shadow-neo-sm active:shadow-neo-none active:translate-x-[2px] active:translate-y-[2px];
+  }
+  .neo-input {
+    @apply border-2 focus:shadow-neo-sm;
   }
 }
 
-/* Custom scrollbar for webkit browsers */
+/* Custom scrollbar for webkit browsers - can be styled to fit Neobrutalism */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-muted/50;
-  border-radius: 10px;
+  @apply bg-muted/30; /* Use a muted background */
+  border-radius: 0px; /* Sharp edges for Neobrutalism */
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-primary/70;
-  border-radius: 10px;
+  @apply bg-primary/70; /* Use primary color */
+  border-radius: 0px; /* Sharp edges */
+  border: 1px solid hsl(var(--border)); /* Add border to thumb */
 }
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-primary;
+}
+
+/* Utility classes for Neobrutalist hard shadows */
+@layer utilities {
+  .shadow-neo-sm {
+    box-shadow: 2px 2px 0px hsl(var(--border));
+  }
+  .shadow-neo-md {
+    box-shadow: 4px 4px 0px hsl(var(--border));
+  }
+  .shadow-neo-lg {
+    box-shadow: 6px 6px 0px hsl(var(--border));
+  }
+  .shadow-neo-xl {
+    box-shadow: 8px 8px 0px hsl(var(--border));
+  }
+  .shadow-neo-none {
+    box-shadow: none;
+  }
+  .active-neo-translate {
+    transform: translate(2px, 2px);
+  }
 }
