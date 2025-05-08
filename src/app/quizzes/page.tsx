@@ -62,40 +62,47 @@ function FlashcardComponent({ flashcard }: FlashcardComponentProps) {
   };
 
   return (
-    
-      
-        {/* Front of the card */}
-        
-          
-            <p className="text-sm text-muted-foreground">Question ID: {flashcard.id}</p>
-            <h3 className="text-lg font-semibold mt-2 mb-4">{flashcard.question}</h3>
-          
-          
-            <Badge className={difficultyColors[flashcard.difficulty]}>{flashcard.difficulty}</Badge>
-            <RotateCcw className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-          
-        
-  
+    <div
+      className="relative w-full h-full"
+      style={cardStyle}
+      onClick={() => setIsFlipped(!isFlipped)}
+    >
+      {/* Front of the card */}
+      <div
+        className="absolute w-full h-full"
+        style={frontStyle}
+      >
+        <div>
+          <p className="text-sm text-muted-foreground">Question ID: {flashcard.id}</p>
+          <h3 className="text-lg font-semibold mt-2 mb-4">{flashcard.question}</h3>
+        </div>
+        <div className="flex justify-between items-center">
+          <Badge className={difficultyColors[flashcard.difficulty]}>{flashcard.difficulty}</Badge>
+          <RotateCcw className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+        </div>
+      </div>
 
-        {/* Back of the card */}
-        
-          
-            <h4 className="text-md font-semibold mb-2">Answer:</h4>
-            <p className="text-sm leading-relaxed">{flashcard.answer}</p>
-          
-          
-            {flashcard.tags && flashcard.tags.length > 0 && (
-              
-                <Tags className="h-4 w-4 mr-1 self-center" />
-                {flashcard.tags.map(tag => (
-                  <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-                ))}
-              
-            )}
-          
-        
-      
-    
+      {/* Back of the card */}
+      <div
+        className="absolute w-full h-full"
+        style={backStyle}
+      >
+        <div>
+          <h4 className="text-md font-semibold mb-2">Answer:</h4>
+          <p className="text-sm leading-relaxed">{flashcard.answer}</p>
+        </div>
+        <div className="flex justify-between items-center">
+          {flashcard.tags && flashcard.tags.length > 0 && (
+            <div className="flex items-center">
+              <Tags className="h-4 w-4 mr-1 self-center" />
+              {flashcard.tags.map(tag => (
+                <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
