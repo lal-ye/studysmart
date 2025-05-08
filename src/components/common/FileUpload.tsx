@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type React from 'react';
 import { useState, useTransition } from 'react';
-import { Button } from '../ui/button';
+import { Button } from '@/components/ui/button'; // Corrected import path
 import { FileUp, X } from 'lucide-react';
 import { extractTextFromPdfAction } from '@/lib/actions';
 import LoadingSpinner from './LoadingSpinner';
@@ -145,4 +145,3 @@ export default function FileUpload({
     </div>
   );
 }
-
