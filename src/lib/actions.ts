@@ -125,6 +125,7 @@ export interface DatedScore {
   score: number; // Percentage
   name: string;
   type: 'Quiz' | 'Exam';
+  results?: ExamResult[];
 }
 
 export interface TopicPerformance {
@@ -219,6 +220,7 @@ export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
         score: totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0,
         date: attempt.date,
         type: 'Exam' as 'Exam',
+          results: attempt.results,
       };
     }),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
