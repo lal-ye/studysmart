@@ -1,15 +1,17 @@
+
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
-import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, LineChart as RechartsLineChart, Line, Bar as RechartsBar } from 'recharts';
+import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, LineChart as RechartsLineChart, Line as RechartsLine, Bar as RechartsBar } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { getAnalyticsDataAction, type AnalyticsSummary, type DatedScore, type TopicPerformance, type QuizScoreDistributionItem, type ExamResult } from '@/lib/actions';
+import type { AnalyticsSummary, DatedScore, TopicPerformance, QuizScoreDistributionItem, ExamResult, StoredExamAttempt } from '@/lib/actions';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { cn } from '@/lib/utils';
 
 
 const overallProgressChartConfig = {
@@ -29,33 +31,94 @@ const topicPerformanceChartConfig = {
 
 export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary | null>(null);
-    const [examResults, setExamResults] = useState<ExamResult[][]>([]);
-  const [isFetching, startFetchingTransition] = useTransition();
+  const [storedExamAttempts, setStoredExamAttempts] = useState<StoredExamAttempt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    startFetchingTransition(async () => {
-      try {
-        const data = await getAnalyticsDataAction();
-        setAnalyticsData(data);
-           // Aggregate exam results from analytics data
-        const examResultsFromAnalytics = data?.overallScoreProgress
-            .filter(item => item.type === 'Exam')
-            .map(item => (item as any).results || []) || []; // Assuming 'results' field exists in the Exam type
-        setExamResults(examResultsFromAnalytics);
-      } catch (error) {
-        console.error("Failed to fetch analytics data:", error);
-        toast({
-          title: "Error Fetching Analytics",
-          description: (error as Error).message || "Could not load analytics data.",
-          variant: "destructive",
+    setIsLoading(true);
+    try {
+      const historyString = localStorage.getItem('studySmartsExamHistory');
+      const loadedAttempts: StoredExamAttempt[] = historyString ? JSON.parse(historyString) : [];
+      setStoredExamAttempts(loadedAttempts);
+
+      if (loadedAttempts.length > 0) {
+        // Process loaded attempts to generate analytics data
+        const overallScores: DatedScore[] = loadedAttempts.map(attempt => ({
+          name: attempt.name,
+          score: attempt.overallScore,
+          date: attempt.date,
+          type: 'Exam',
+        })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        let totalScoreSum = 0;
+        overallScores.forEach(s => totalScoreSum += s.score);
+        const overallAverageScore = overallScores.length > 0 ? totalScoreSum / overallScores.length : 0;
+
+        const topicPerformanceMap = new Map<string, { correct: number; total: number }>();
+        loadedAttempts.forEach(attempt => {
+          attempt.examResults.forEach(result => {
+            const current = topicPerformanceMap.get(result.topic) || { correct: 0, total: 0 };
+            current.total += 1;
+            if (result.isCorrect) {
+              current.correct += 1;
+            }
+            topicPerformanceMap.set(result.topic, current);
+          });
         });
-        setAnalyticsData(null); // Reset or handle error state
+
+        const topicPerformance: TopicPerformance[] = Array.from(topicPerformanceMap.entries()).map(([topic, data]) => ({
+          topic,
+          correct: data.correct,
+          total: data.total,
+          accuracy: data.total > 0 ? (data.correct / data.total) * 100 : 0,
+        })).sort((a,b) => b.accuracy - a.accuracy);
+
+        const areasForImprovement = [...topicPerformance]
+          .filter(topic => topic.accuracy < 100)
+          .sort((a, b) => a.accuracy - b.accuracy)
+          .slice(0, 5);
+        
+        // Placeholder for quiz data as it's not currently stored
+        const quizScoreDistribution: QuizScoreDistributionItem[] = []; 
+        const quizzesTaken = 0; 
+
+
+        setAnalyticsData({
+          overallAverageScore,
+          quizzesTaken, // Replace with actual quiz data if implemented
+          examsTaken: loadedAttempts.length,
+          overallScoreProgress: overallScores,
+          topicPerformance,
+          areasForImprovement,
+          quizScoreDistribution, // Replace with actual quiz data if implemented
+        });
+      } else {
+        // Set default empty state if no history
+        setAnalyticsData({
+            overallAverageScore: 0,
+            quizzesTaken: 0,
+            examsTaken: 0,
+            overallScoreProgress: [],
+            topicPerformance: [],
+            areasForImprovement: [],
+            quizScoreDistribution: [],
+        });
       }
-    });
+    } catch (error) {
+      console.error("Failed to load or process analytics data from localStorage:", error);
+      toast({
+        title: "Error Loading Analytics",
+        description: (error as Error).message || "Could not load analytics data from local storage.",
+        variant: "destructive",
+      });
+      setAnalyticsData(null); // Reset or handle error state
+    } finally {
+        setIsLoading(false);
+    }
   }, [toast]);
 
-  if (isFetching) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
         <LoadingSpinner size={48} />
@@ -73,7 +136,7 @@ export default function AnalyticsPage() {
         <CardContent className="text-center py-10">
           <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
           <p className="text-xl text-muted-foreground">No analytics data available or failed to load.</p>
-          <p className="text-sm text-muted-foreground mt-2">Please try again later or ensure there are completed quizzes/exams.</p>
+          <p className="text-sm text-muted-foreground mt-2">Please complete some exams to see your analytics.</p>
         </CardContent>
       </Card>
     );
@@ -97,9 +160,6 @@ export default function AnalyticsPage() {
     "hsl(var(--chart-5))",
   ];
 
-    // Aggregate exam results to determine overall exam performance
-    const examScores: DatedScore[] = overallScoreProgress.filter(item => item.type === 'Exam');
-
 
   return (
     <div className="space-y-6">
@@ -110,7 +170,7 @@ export default function AnalyticsPage() {
             <div>
               <CardTitle className="text-2xl font-bold">Analytics Dashboard</CardTitle>
               <CardDescription>
-                Track your learning progress, quiz and exam scores, and identify areas for improvement.
+                Track your learning progress, exam scores, and identify areas for improvement.
               </CardDescription>
             </div>
           </div>
@@ -118,14 +178,14 @@ export default function AnalyticsPage() {
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <InfoCard title="Overall Average Score" value={`${overallAverageScore.toFixed(1)}%`} icon={<Activity className="h-6 w-6 text-primary" />} />
-        <InfoCard title="Quizzes Taken" value={quizzesTaken.toString()} icon={<TrendingUp className="h-6 w-6 text-primary" />} />
+        <InfoCard title="Overall Average Score" value={`${overallAverageScore.toFixed(1)}%`} icon={<Activity className="h-6 w-6 text-primary" />} description="Based on completed exams"/>
+        <InfoCard title="Quizzes Taken" value={quizzesTaken.toString()} icon={<TrendingUp className="h-6 w-6 text-primary" />} description="Feature coming soon"/>
         <InfoCard title="Exams Taken" value={examsTaken.toString()} icon={<TrendingDown className="h-6 w-6 text-primary" />} />
       </div>
 
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Overall Score Progress</CardTitle>
+          <CardTitle>Overall Exam Score Progress</CardTitle>
         </CardHeader>
         <CardContent className="h-[350px]">
           {overallScoreProgress.length > 0 ? (
@@ -133,13 +193,13 @@ export default function AnalyticsPage() {
               <RechartsLineChart data={overallScoreProgress} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                 <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
                 <YAxis domain={[0, 100]} unit="%" />
-                <Tooltip content={<ChartTooltipContent indicator="line" />} />
+                <Tooltip content={<ChartTooltipContent indicator="line" labelKey="name" />} />
                 <Legend />
-                   <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
+                   <RechartsLine type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
               </RechartsLineChart>
             </ChartContainer>
           ) : (
-            <p className="text-center text-muted-foreground py-10">No score progress data available.</p>
+            <p className="text-center text-muted-foreground py-10">No exam score progress data available. Complete an exam to see progress.</p>
           )}
         </CardContent>
       </Card>
@@ -147,21 +207,21 @@ export default function AnalyticsPage() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Topic Performance (Accuracy %)</CardTitle>
-        CardDescription>
+          <CardDescription>Based on all completed exams.</CardDescription>
         </CardHeader>
         <CardContent className="h-[350px]">
          {topicPerformance.length > 0 ? (
             <ChartContainer config={topicPerformanceChartConfig} className="w-full h-full">
               <RechartsBarChart data={topicPerformance} layout="vertical" margin={{ right: 30 }}>
                 <XAxis type="number" domain={[0, 100]} unit="%" />
-                <YAxis dataKey="topic" type="category" width={100} tickLine={false} axisLine={false}/>
+                <YAxis dataKey="topic" type="category" width={120} tickLine={false} axisLine={false}/>
                 <Tooltip content={<ChartTooltipContent indicator="dot" />} />
                 <Legend />
                    <RechartsBar dataKey="accuracy" fill="var(--color-accuracy)" radius={4} name="Accuracy" />
               </RechartsBarChart>
             </ChartContainer>
          ) : (
-            <p className="text-center text-muted-foreground py-10">No topic performance data available.</p>
+            <p className="text-center text-muted-foreground py-10">No topic performance data available. Complete an exam to see performance.</p>
          )}
         </CardContent>
       </Card>
@@ -170,6 +230,7 @@ export default function AnalyticsPage() {
         <Card className="shadow-md">
           <CardHeader>
             <CardTitle>Quiz Score Distribution</CardTitle>
+            <CardDescription>Feature coming soon.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px]">
             {quizScoreDistribution.length > 0 ? (
@@ -185,7 +246,7 @@ export default function AnalyticsPage() {
                   </RechartsPieChart>
               </ChartContainer>
             ) : (
-              <p className="text-center text-muted-foreground py-10">No quiz score data available.</p>
+              <p className="text-center text-muted-foreground py-10">No quiz score data available yet.</p>
             )}
           </CardContent>
         </Card>
@@ -206,60 +267,73 @@ export default function AnalyticsPage() {
                           {item.correct} / {item.total} correct
                         </p>
                       </div>
-                      <span className={`font-semibold ${item.accuracy < 50 ? 'text-destructive' : item.accuracy < 75 ? 'text-yellow-500' : 'text-green-500'}`}>
+                      <span className={cn(
+                        "font-semibold",
+                        item.accuracy < 50 ? 'text-destructive' : 
+                        item.accuracy < 75 ? 'text-yellow-500 dark:text-yellow-400' : 
+                        'text-green-500 dark:text-green-400'
+                      )}>
                         {item.accuracy.toFixed(1)}%
                       </span>
                     </li>
                 ))}
               </ul>
             ) : (
-              topicPerformance.length > 0 ? (
-                <p className="text-center text-green-600 font-semibold py-10">Great job! No specific areas for improvement based on current data.</p>
+              examsTaken > 0 ? (
+                <p className="text-center text-green-600 font-semibold py-10">Great job! No specific areas for improvement based on current exam data.</p>
               ) : (
-                <p className="text-center text-muted-foreground py-10">No data available to determine areas for improvement.</p>
+                <p className="text-center text-muted-foreground py-10">Complete an exam to identify areas for improvement.</p>
               )
               
             )}
           </CardContent>
         </Card>
       </div>
-        {/* Display Exam Results */}
-        {examResults.length > 0 && (
+        {/* Display Exam Results History */}
+        {storedExamAttempts.length > 0 && (
             <Card className="shadow-md">
                 <CardHeader>
-                    <CardTitle>Previous Exam Results</CardTitle>
+                    <CardTitle>Previous Exam Attempts</CardTitle>
                     <CardDescription>Review detailed results from your past exams.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Accordion type="single" collapsible className="w-full">
-                        {examResults.map((exam, index) => (
-                            <AccordionItem value={`exam-${index}`} key={index}>
+                        {storedExamAttempts.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((attempt, index) => ( // Sort by most recent
+                            <AccordionItem value={attempt.id} key={attempt.id}>
                                 <AccordionTrigger className="text-left hover:no-underline">
                                     <div className="flex items-center justify-between w-full">
-                                        <span>Exam {index + 1}</span>
-                                        <Badge variant="secondary">
-                                            Score: {exam.filter(r => r.isCorrect).length} / {exam.length}
+                                        <span>{attempt.name} - {new Date(attempt.date).toLocaleDateString()}</span>
+                                        <Badge variant={attempt.overallScore >= 70 ? "default" : attempt.overallScore >=50 ? "secondary" : "destructive"}>
+                                            Score: {attempt.overallScore.toFixed(1)}%
                                         </Badge>
                                     </div>
                                 </AccordionTrigger>
-                                <AccordionContent className="text-sm">
-                                    <ul>
-                                        {exam.map((result, i) => (
-                                            <li key={i} className="py-2">
-                                                <p>
-                                                    <strong>Question:</strong> {result.question}
-                                                </p>
-                                                <p>
-                                                    <strong>Your Answer:</strong> {result.userAnswer}
-                                                </p>
-                                                <p>
-                                                    <strong>Correct Answer:</strong> {result.correctAnswer}
-                                                </p>
-                                                <Badge variant={result.isCorrect ? "default" : "destructive"}>
-                                                    {result.isCorrect ? "Correct" : "Incorrect"}
-                                                </Badge>
-                                            </li>
-                                        ))}
+                                <AccordionContent className="text-sm space-y-4">
+                                    <p><strong>Overall Score:</strong> {attempt.overallScore.toFixed(1)}% ({attempt.examResults.filter(r => r.isCorrect).length} / {attempt.examQuestions.length})</p>
+                                    {attempt.topicsToReview.length > 0 && (
+                                        <div>
+                                            <h4 className="font-semibold mb-1">Topics to Review:</h4>
+                                            <div className="flex flex-wrap gap-1">
+                                                {attempt.topicsToReview.map(topic => <Badge key={topic} variant="outline">{topic}</Badge>)}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <h4 className="font-semibold mt-3">Detailed Results:</h4>
+                                    <ul className="space-y-3">
+                                        {attempt.examQuestions.map((question, i) => {
+                                            const result = attempt.examResults[i];
+                                            return (
+                                                <li key={question.question + i} className="p-3 border rounded-md bg-muted/30">
+                                                    <p className="font-medium">Q{i+1}: {question.question}</p>
+                                                    <p className="text-xs text-muted-foreground">Topic: {question.topic} | Type: {question.type.replace('_', ' ')}</p>
+                                                    <p><strong>Your Answer:</strong> {result.userAnswer || <span className="italic text-muted-foreground">Not answered</span>}</p>
+                                                    {!result.isCorrect && <p><strong>Correct Answer:</strong> {question.correctAnswer}</p>}
+                                                     <Badge variant={result.isCorrect ? "default" : "destructive"} className={cn(result.isCorrect ? "bg-green-500 hover:bg-green-600" : "")}>
+                                                        {result.isCorrect ? "Correct" : "Incorrect"}
+                                                    </Badge>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 </AccordionContent>
                             </AccordionItem>
