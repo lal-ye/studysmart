@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
-import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, RechartsLineChart, Line as RechartsLine, Bar as RechartsBar } from 'recharts';
+import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, LineChart as RechartsLineChart, Line, Bar as RechartsBar } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { getAnalyticsDataAction, type AnalyticsSummary, type DatedScore, type TopicPerformance, type QuizScoreDistributionItem, type ExamResult } from '@/lib/actions';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -135,7 +135,7 @@ export default function AnalyticsPage() {
                 <YAxis domain={[0, 100]} unit="%" />
                 <Tooltip content={<ChartTooltipContent indicator="line" />} />
                 <Legend />
-                   <RechartsLine type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
+                   <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
               </RechartsLineChart>
             </ChartContainer>
           ) : (
@@ -294,3 +294,4 @@ function InfoCard({ title, value, icon, description }: InfoCardProps) {
     </Card>
   );
 }
+
