@@ -95,7 +95,12 @@ export async function getExtraReadingsAction(
    try {
     const result = await generateExtraReadingsFlow(input);
     // Ensure articles is always an array, even if the flow returns undefined/null
-    return { articles: result.articles || [] };
+    // Also filter out placeholder "No Relevant Articles Found" if it's the only one
+    const articles = result.articles || [];
+    if (articles.length === 1 && articles[0].title === "No Relevant Articles Found") {
+        return { articles: [] };
+    }
+    return { articles: articles.filter(article => article.title !== "No Relevant Articles Found") };
   } catch (error) {
     console.error('Error in getExtraReadingsAction:', error);
     if (error instanceof Error) {
@@ -137,7 +142,6 @@ export interface DatedScore {
   score: number; // Percentage
   name: string;
   type: 'Quiz' | 'Exam';
-  results?: ExamResult[]; 
 }
 
 export interface TopicPerformance {
@@ -162,120 +166,31 @@ export interface AnalyticsSummary {
   quizScoreDistribution: QuizScoreDistributionItem[]; 
 }
 
+// New interface for storing exam attempts in localStorage
+export interface StoredExamAttempt {
+  id: string;
+  name: string;
+  date: string; // 'YYYY-MM-DD'
+  examQuestions: ExamQuestion[];
+  examResults: ExamResult[];
+  overallScore: number;
+  topicsToReview: string[];
+}
+
 // --- Analytics Action ---
 export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
-  const mockQuizAttempts: DatedScore[] = [
-    { name: 'Algebra Basics Quiz', score: 80, date: '2024-07-01', type: 'Quiz' },
-    { name: 'Calculus Intro Quiz', score: 70, date: '2024-07-08', type: 'Quiz' },
-    { name: 'Geometry Fundamentals Quiz', score: 90, date: '2024-07-15', type: 'Quiz' },
-     { name: 'Physics Kinematics Quiz', score: 65, date: '2024-07-05', type: 'Quiz' },
-    { name: 'Chemistry Stoichiometry Quiz', score: 75, date: '2024-07-12', type: 'Quiz' },
-  ];
-
-  interface MockExamAttempt extends GenerateExamAndAnalyzeOutput {
-    date: string; 
-    name: string;
-  }
-
-  const mockExamAttempts: MockExamAttempt[] = [
-    {
-      name: 'Midterm Exam - Math & Physics',
-      date: '2024-07-10',
-      exam: [ 
-        { question: 'Algebra Q1: Solve for x in 2x+5=11', type: 'multiple_choice', options: ['2','3','4','5'], correctAnswer: '3', topic: 'Algebra'},
-        { question: 'Algebra Q2: Factor x^2-9', type: 'short_answer', correctAnswer: '(x-3)(x+3)', topic: 'Algebra'},
-        { question: 'Calculus Q1: Is d/dx(sin(x)) = cos(x)?', type: 'true_false', correctAnswer: 'true', topic: 'Calculus'},
-        { question: 'Physics Q1: Newtons first law involves inertia.', type: 'true_false', correctAnswer: 'true', topic: 'Physics'},
-        { question: 'Physics Q2: Unit of Force?', type: 'multiple_choice', options: ['Joule','Watt','Newton','Pascal'], correctAnswer: 'Newton', topic: 'Physics'},
-        { question: 'Geometry Q1: Sum of angles in a triangle is 180 degrees.', type: 'short_answer', correctAnswer: '180 degrees', topic: 'Geometry'},
-      ],
-      results: [
-        { question: 'Algebra Q1: Solve for x in 2x+5=11', type: 'multiple_choice', correctAnswer: '3', userAnswer: '3', isCorrect: true, topic: 'Algebra' },
-        { question: 'Algebra Q2: Factor x^2-9', type: 'short_answer', correctAnswer: '(x-3)(x+3)', userAnswer: '(x-3)(x+3)', isCorrect: true, topic: 'Algebra' },
-        { question: 'Calculus Q1: Is d/dx(sin(x)) = cos(x)?', type: 'true_false', correctAnswer: 'true', userAnswer: 'false', isCorrect: false, topic: 'Calculus' },
-        { question: 'Physics Q1: Newtons first law involves inertia.', type: 'true_false', correctAnswer: 'true', userAnswer: 'true', isCorrect: true, topic: 'Physics'},
-        { question: 'Physics Q2: Unit of Force?', type: 'multiple_choice', correctAnswer: 'Newton', userAnswer: 'Watt', isCorrect: false, topic: 'Physics'},
-        { question: 'Geometry Q1: Sum of angles in a triangle is 180 degrees.', type: 'short_answer', correctAnswer: '180 degrees', userAnswer: '360 degrees', isCorrect: false, topic: 'Geometry' },
-      ],
-      topicsToReview: ['Calculus', 'Physics', 'Geometry'],
-      extraReadings: [{title: "Calculus Basics", url: "https://example.com/calc-basics"}, {title: "Newton's Laws", url: "https://example.com/newtons-laws"}],
-    },
-    {
-      name: 'Final Exam - Science',
-      date: '2024-07-25',
-      exam: [ 
-        { question: 'Chemistry Q1: What is H2O?', type: 'multiple_choice', options: ['Hydrogen Oxide','Water','Oxygen Hydride','Acid'], correctAnswer: 'Water', topic: 'Chemistry'},
-        { question: 'Biology Q1: Mitochondria is the powerhouse of the cell.', type: 'true_false', correctAnswer: 'true', topic: 'Biology'},
-        { question: 'Physics Q3: Define velocity.', type: 'short_answer', correctAnswer: 'Rate of change of displacement', topic: 'Physics'},
-        { question: 'Statistics Q1: Mean is a measure of central tendency.', type: 'true_false', correctAnswer: 'true', topic: 'Statistics'},
-      ],
-      results: [
-        { question: 'Chemistry Q1: What is H2O?', type: 'multiple_choice', correctAnswer: 'Water', userAnswer: 'Water', isCorrect: true, topic: 'Chemistry' },
-        { question: 'Biology Q1: Mitochondria is the powerhouse of the cell.', type: 'true_false', correctAnswer: 'true', userAnswer: 'true', isCorrect: true, topic: 'Biology' },
-        { question: 'Physics Q3: Define velocity.', type: 'short_answer', correctAnswer: 'Rate of change of displacement', userAnswer: 'Speed in a direction', isCorrect: true, topic: 'Physics' }, 
-        { question: 'Statistics Q1: Mean is a measure of central tendency.', type: 'true_false', correctAnswer: 'true', userAnswer: 'false', isCorrect: false, topic: 'Statistics' },
-      ],
-      topicsToReview: ['Statistics'],
-      extraReadings: [{title: "Intro to Statistics", url: "https://example.com/intro-stats"}],
-    },
-  ];
-
-  const allScores: DatedScore[] = [
-    ...mockQuizAttempts,
-    ...mockExamAttempts.map(attempt => {
-      const correctCount = attempt.results.filter(r => r.isCorrect).length;
-      const totalQuestions = attempt.exam.length;
-      return {
-        name: attempt.name,
-        score: totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0,
-        date: attempt.date,
-        type: 'Exam' as 'Exam',
-        results: attempt.results, 
-      };
-    }),
-  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-  let totalScoreSum = 0;
-  allScores.forEach(s => totalScoreSum += s.score);
-  const overallAverageScore = allScores.length > 0 ? totalScoreSum / allScores.length : 0;
-
-  const topicPerformanceMap = new Map<string, { correct: number; total: number }>();
-  mockExamAttempts.forEach(attempt => {
-    attempt.results.forEach(result => {
-      const current = topicPerformanceMap.get(result.topic) || { correct: 0, total: 0 };
-      current.total += 1;
-      if (result.isCorrect) {
-        current.correct += 1;
-      }
-      topicPerformanceMap.set(result.topic, current);
-    });
-  });
-
-  const topicPerformance: TopicPerformance[] = Array.from(topicPerformanceMap.entries()).map(([topic, data]) => ({
-    topic,
-    correct: data.correct,
-    total: data.total,
-    accuracy: data.total > 0 ? (data.correct / data.total) * 100 : 0,
-  })).sort((a,b) => b.accuracy - a.accuracy); 
-
-  const areasForImprovement = [...topicPerformance]
-    .filter(topic => topic.accuracy < 100) 
-    .sort((a, b) => a.accuracy - b.accuracy) 
-    .slice(0, 5); 
-
-  const quizScoreDistribution: QuizScoreDistributionItem[] = mockQuizAttempts.map(qa => ({
-    name: qa.name,
-    score: qa.score,
-  }));
-
+  // This server action cannot access localStorage directly.
+  // The actual data will be loaded client-side in AnalyticsPage.tsx.
+  // This function now serves as a placeholder or could fetch from a DB in a real app.
+  console.warn("getAnalyticsDataAction called. In this version, actual analytics data is loaded client-side from localStorage.");
   return {
-    overallAverageScore,
-    quizzesTaken: mockQuizAttempts.length,
-    examsTaken: mockExamAttempts.length,
-    overallScoreProgress: allScores,
-    topicPerformance,
-    areasForImprovement,
-    quizScoreDistribution,
+    overallAverageScore: 0,
+    quizzesTaken: 0,
+    examsTaken: 0,
+    overallScoreProgress: [],
+    topicPerformance: [],
+    areasForImprovement: [],
+    quizScoreDistribution: [],
   };
 }
 

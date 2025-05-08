@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { generateAndAnalyzeExamAction, getExtraReadingsAction } from '@/lib/actions';
-import type { GenerateAndAnalyzeExamActionInput, GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult } from '@/lib/actions';
+import type { GenerateAndAnalyzeExamActionInput, GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult, StoredExamAttempt } from '@/lib/actions';
 import type { Article } from '@/services/search-articles';
 import FileUpload from '@/components/common/FileUpload';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -16,8 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, BookOpen, FileText, ExternalLink, ClipboardCheck, ArrowLeft, ArrowRight, Send } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import type { ToastProps } from '@/components/ui/toast'; // For ToastArgs variant
+import type { ToastProps } from '@/components/ui/toast'; 
 
 type ExamState = 'idle' | 'generating_exam' | 'taking_exam' | 'grading_exam' | 'showing_results';
 
@@ -25,7 +26,6 @@ interface ToastArgsForPage {
   title: string;
   description: string;
   variant?: ToastProps['variant'];
-  // Add other toast properties used in this page if necessary e.g. icon, action
 }
 
 
@@ -39,6 +39,8 @@ export default function ExamsPage() {
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
+  const [examName, setExamName] = useState<string>('');
+
 
   const [isProcessingAction, startProcessingActionTransition] = useTransition();
   const [isFetchingReadings, startFetchingReadingsTransition] = useTransition();
@@ -56,7 +58,7 @@ export default function ExamsPage() {
 
   const handleGenerateExam = () => {
     if (!courseMaterial.trim()) {
-      toast({ title: 'Input Required', description: 'Please provide course material to generate an exam.', variant: 'destructive' });
+      setToastArgs({ title: 'Input Required', description: 'Please provide course material to generate an exam.', variant: 'destructive' });
       return;
     }
     setExamState('generating_exam');
@@ -65,6 +67,7 @@ export default function ExamsPage() {
     setExamResultsData(null);
     setUserAnswers({});
     setCurrentQuestionIndex(0);
+    // Do not reset examName here, allow user to set it before starting or keep previous if desired for re-attempts.
 
     startProcessingActionTransition(async () => {
       try {
@@ -77,7 +80,7 @@ export default function ExamsPage() {
           setCurrentExamQuestions(result.exam);
           setPersistedExamQuestions(result.exam); 
           setExamState('taking_exam');
-          setToastArgs({ title: 'Exam Ready!', description: 'You can now start the exam.' });
+          setToastArgs({ title: 'Exam Ready!', description: 'You can now start the exam. Feel free to name your exam attempt.' });
         } else {
           setToastArgs({ title: 'Generation Issue', description: 'No questions were generated. Try different material.', variant: 'destructive' });
           setExamState('idle');
@@ -95,7 +98,7 @@ export default function ExamsPage() {
 
   const handleSubmitExam = () => {
     if (persistedExamQuestions.length === 0) {
-        toast({ title: 'Error', description: 'No exam questions found to submit.', variant: 'destructive'});
+        setToastArgs({ title: 'Error', description: 'No exam questions found to submit.', variant: 'destructive'});
         setExamState('idle'); 
         return;
     }
@@ -110,9 +113,37 @@ export default function ExamsPage() {
           exam: persistedExamQuestions, 
         };
         const result = await generateAndAnalyzeExamAction(input);
+        
+        // Store exam results
+        const finalResults = result.results;
+        const overallScore = finalResults.filter(r => r.isCorrect).length / result.exam.length * 100;
+        const attemptId = Date.now().toString();
+        const finalExamName = examName.trim() || `Exam - ${new Date().toLocaleString()}`;
+
+        const newAttempt: StoredExamAttempt = {
+            id: attemptId,
+            name: finalExamName,
+            date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            examQuestions: result.exam,
+            examResults: finalResults,
+            overallScore: overallScore,
+            topicsToReview: result.topicsToReview,
+        };
+
+        try {
+            const historyString = localStorage.getItem('studySmartsExamHistory');
+            const history: StoredExamAttempt[] = historyString ? JSON.parse(historyString) : [];
+            history.push(newAttempt);
+            localStorage.setItem('studySmartsExamHistory', JSON.stringify(history));
+            setToastArgs({ title: 'Exam Graded & Saved!', description: 'Your results are ready and saved to your history.' });
+        } catch (e) {
+            console.error("Failed to save exam to localStorage", e);
+            setToastArgs({ title: 'Exam Graded (Save Failed)', description: 'Results ready, but failed to save to local history.', variant: 'destructive' });
+        }
+
         setExamResultsData(result);
         setExamState('showing_results');
-        setToastArgs({ title: 'Exam Graded!', description: 'Your results are ready below.' });
+
       } catch (error) {
         setToastArgs({ title: 'Error Grading Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
         setExamState('taking_exam'); 
@@ -132,18 +163,18 @@ export default function ExamsPage() {
           }
 
           const existingUrls = new Set((prevData.extraReadings || []).map(ar => ar.url));
-          const newArticlesToAdd = readingsResult.articles.filter(newArticle => !existingUrls.has(newArticle.url) && newArticle.title !== "No Relevant Articles Found");
+          const newArticlesToAdd = readingsResult.articles.filter(newArticle => !existingUrls.has(newArticle.url));
 
-          if (readingsResult.articles.length === 0 || (readingsResult.articles.length === 1 && readingsResult.articles[0].title === "No Relevant Articles Found" && newArticlesToAdd.length === 0) ) {
-             setToastArgs({ title: `No New Readings Found`, description: `Could not find any new articles for "${topic}".` });
-             return prevData; 
+
+          if (newArticlesToAdd.length === 0) {
+            if (readingsResult.articles.length > 0) {
+                 setToastArgs({ title: `Readings for ${topic} may already be listed or none found.`, description: "No new unique articles found." });
+            } else {
+                 setToastArgs({ title: `No New Readings Found`, description: `Could not find any articles for "${topic}".` });
+            }
+            return prevData;
           }
           
-          if (newArticlesToAdd.length === 0 && readingsResult.articles.length > 0 && readingsResult.articles[0].title !== "No Relevant Articles Found") { 
-            setToastArgs({ title: `Readings for ${topic} already listed.`, description: "No new unique articles found." });
-            return prevData; 
-          }
-
           const processedNewArticles = newArticlesToAdd.map(article => ({
             ...article,
             title: article.title.toLowerCase().startsWith(topic.toLowerCase() + ":") || article.title.toLowerCase().startsWith(topic.toLowerCase()+" -") 
@@ -151,11 +182,9 @@ export default function ExamsPage() {
                    : `${topic}: ${article.title}`,
           }));
           
-          const updatedReadings = [...(prevData.extraReadings || []).filter(ar => ar.title !== "No Relevant Articles Found"), ...processedNewArticles];
+          const updatedReadings = [...(prevData.extraReadings || []), ...processedNewArticles];
           
-          if (processedNewArticles.length > 0) {
-            setToastArgs({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
-          }
+          setToastArgs({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
           return { ...prevData, extraReadings: updatedReadings };
         });
       } catch (error) {
@@ -176,6 +205,7 @@ export default function ExamsPage() {
     setPersistedExamQuestions([]);
     setUserAnswers({});
     setCurrentQuestionIndex(0);
+    setExamName(''); // Reset exam name for new exam
   };
 
   const currentQuestion = currentExamQuestions[currentQuestionIndex];
@@ -198,10 +228,22 @@ export default function ExamsPage() {
     return (
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl">Exam in Progress: Question {currentQuestionIndex + 1} of {currentExamQuestions.length}</CardTitle>
-          <CardDescription>Topic: {currentQuestion.topic}</CardDescription>
+          <CardTitle className="text-xl">
+            {examName.trim() || `Exam Attempt - ${new Date().toLocaleDateString()}`}
+          </CardTitle>
+          <CardDescription>Question {currentQuestionIndex + 1} of {currentExamQuestions.length} (Topic: {currentQuestion.topic})</CardDescription>
           <Progress value={progress} className="w-full mt-2" />
            <p className="text-sm text-muted-foreground mt-1">{Object.keys(userAnswers).length} / {currentExamQuestions.length} answered</p>
+            <div className="mt-4">
+                <Label htmlFor="examNameInput" className="text-sm font-medium">Exam Name (Optional)</Label>
+                <Input
+                    id="examNameInput"
+                    placeholder="e.g., Midterm Prep, Chapter 5 Review"
+                    value={examName}
+                    onChange={(e) => setExamName(e.target.value)}
+                    className="mt-1"
+                />
+            </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="font-semibold text-lg">{currentQuestion.question}</p>
@@ -267,13 +309,14 @@ export default function ExamsPage() {
   }
 
   if (examState === 'showing_results' && examResultsData) {
+    const overallScore = examResultsData.results.filter(r => r.isCorrect).length / examResultsData.exam.length * 100;
     return (
       <div className="space-y-6">
         <Card>
             <CardHeader>
-                <CardTitle className="text-2xl font-bold">Exam Results</CardTitle>
+                <CardTitle className="text-2xl font-bold">{examName || "Exam Results"}</CardTitle>
                 <CardDescription>
-                    Review your performance. Score: {examResultsData.results.filter(r => r.isCorrect).length} / {examResultsData.exam.length}
+                    Your Score: {overallScore.toFixed(1)}% ({examResultsData.results.filter(r => r.isCorrect).length} / {examResultsData.exam.length})
                 </CardDescription>
             </CardHeader>
         </Card>
@@ -346,8 +389,7 @@ export default function ExamsPage() {
         </Card>
 
         {examResultsData.extraReadings && 
-          examResultsData.extraReadings.length > 0 && 
-          examResultsData.extraReadings.filter(article => article.title !== "No Relevant Articles Found").length > 0 && (
+          examResultsData.extraReadings.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Extra Readings</CardTitle>
@@ -370,7 +412,7 @@ export default function ExamsPage() {
                     ))}
                   </ul>
                 ) : (
-                   <p className="text-muted-foreground">No extra readings available for the topics reviewed, or none were found.</p>
+                   <p className="text-muted-foreground">No extra readings available for the topics reviewed, or none were found. Click "Find Readings" above to search.</p>
                 )
               }
             </CardContent>
@@ -397,6 +439,7 @@ export default function ExamsPage() {
               <CardDescription>
                 Provide your course material (e.g., .txt, .pdf file or paste text) to generate a 30-question exam.
                 The exam will include 15 multiple-choice, 10 true/false, and 5 short answer questions.
+                Name your exam attempt to track it in your analytics.
               </CardDescription>
             </div>
           </div>
