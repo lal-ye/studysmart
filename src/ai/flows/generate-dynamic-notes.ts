@@ -43,12 +43,32 @@ const prompt = ai.definePrompt({
     *   Include callout boxes (\`> [!NOTE]\` for important notes, \`> [!IMPORTANT]\` for critical takeaways, \`> [!TIP]\` for helpful tips).
 4.  **Synthesis**:
     *   Summarize key themes in your own words, avoiding verbatim copying.
-    *   Add a 'Mindmap Overview' section using Mermaid.js syntax (e.g., graph TD; A-->B;). Keep it simple and focused on major relationships.
+    *   **Mindmap Overview**:
+        Generate a Mermaid.js mindmap diagram that visually represents the core concepts, hierarchical relationships, and key connections within the provided source material.
+        **Mindmap Requirements:**
+        *   **Diagram Type:** Use the \`mindmap\` diagram type in Mermaid.js.
+        *   **Root Node:** The central idea or root of the mindmap should be derived from the main topic of the source material. Use clear and concise text for the root node, e.g., \`root((Main Topic))\`.
+        *   **Hierarchical Levels:** Represent at least 2-3 levels of hierarchy branching from the root node. Use indentation to define parent-child relationships.
+        *   **Key Branches (Level 1):** Identify and include major branches stemming directly from the root, based on the main sections or themes in the material.
+        *   **Sub-topics (Level 2+):** For each major branch, elaborate with relevant sub-topics or key concepts found in the material.
+        *   **Clarity and Readability:** Use concise and descriptive labels for each node. Ensure the layout is logical and easy to follow.
+        *   **Syntax:** Adhere strictly to Mermaid.js \`mindmap\` syntax.
+        **Example Mermaid.js Mindmap Syntax (adapt to the content from {{{material}}}):**
+        \`\`\`mermaid
+        mindmap
+          root((Central Idea from Material))
+            Branch 1 from Material
+              Sub-topic 1.1
+              Sub-topic 1.2
+                Further Detail 1.2.1
+            Branch 2 from Material
+              Sub-topic 2.1
+        \`\`\`
 5.  **Citations**:
     *   Attribute all ideas to the source using a simple placeholder like [[1]] if only one source is provided. If \`sourceName\` is available, use it as the reference.
     *   Include a 'References' section at the end. If \`sourceName\` is provided, list it as: \`1. {{{sourceName}}}\`. If not, state: \`1. Provided course material.\`
 
-Example structure:
+Example overall note structure:
 \`\`\`markdown
 # Main Topic
 [[1]]
@@ -75,10 +95,13 @@ Example structure:
 
 ## Mindmap Overview
 \`\`\`mermaid
-graph TD;
-    MainTopic --> Subtopic1;
-    Subtopic1 --> KeyConcept;
-    MainTopic --> Subtopic2;
+mindmap
+  root((Central Idea of the Notes))
+    Key Theme 1
+      Concept A
+      Concept B
+    Key Theme 2
+      Concept C
 \`\`\`
 
 ## References
