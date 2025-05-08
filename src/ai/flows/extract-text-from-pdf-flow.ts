@@ -31,10 +31,8 @@ export async function extractTextFromPdf(input: ExtractTextFromPdfInput): Promis
 
 const pdfExtractionPrompt = ai.definePrompt({
   name: 'extractTextFromPdfPrompt',
-  // Use a model known for strong multimodal capabilities, like Gemini 1.5 Pro.
-  // This model can typically handle PDF data URIs directly.
-  // Changed from 'googleai/gemini-1.5-flash-latest' due to "Model not found" error.
-  model: 'googleai/gemini-1.5-pro-latest',
+  // Use a model known for strong multimodal capabilities.
+  model: 'googleai/gemini-2.5-flash-preview-04-17', // Updated model
   input: {schema: ExtractTextFromPdfInputSchema},
   output: {schema: ExtractTextFromPdfOutputSchema},
   prompt: `Extract all textual content from the provided PDF document.
