@@ -1,8 +1,9 @@
+
 'use server';
 
 import { generateDynamicNotes as generateDynamicNotesFlow, type GenerateDynamicNotesInput } from '@/ai/flows/generate-dynamic-notes';
 import { generateQuiz, type GenerateQuizInput, type GenerateQuizOutput, type Flashcard } from '@/ai/flows/generate-quiz';
-import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput, type GenerateExamAndAnalyzeOutput } from '@/ai/flows/generate-exam-and-analyze';
+import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput, type GenerateExamAndAnalyzeOutput, type ExamQuestion, type ExamResult } from '@/ai/flows/generate-exam-and-analyze';
 import { generateExtraReadings as generateExtraReadingsFlow, type GenerateExtraReadingsInput, type GenerateExtraReadingsOutput } from '@/ai/flows/generate-extra-readings';
 import { extractTextFromPdf as extractTextFromPdfFlow, type ExtractTextFromPdfInput, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
 import { explainTerm as explainTermFlow, type ExplainTermInput, type ExplainTermOutput } from '@/ai/flows/explain-term-flow';
@@ -38,12 +39,15 @@ export async function generateQuizAction(
   try {
     const result: GenerateQuizOutput = await generateQuiz(input); 
 
-    if (!result.flashcards || result.flashcards.length === 0) {
+    if (!result.flashcards) { // Check if flashcards array is missing or null
+        console.warn('[StudySmarts Debug - generateQuizAction] AI returned null/undefined flashcards array.');
+        throw new Error("The AI model returned invalid quiz data. Please try again.");
+    }
+    if (result.flashcards.length === 0) {
         console.warn('[StudySmarts Debug - generateQuizAction] AI returned an empty set of flashcards.');
-        // Return an empty array if that's an acceptable outcome for the UI to handle.
+         // It's better to return empty and let UI decide, or throw specific error if it's always unexpected.
+        // For now, returning empty as per previous behavior for "no flashcards generated" toast.
         return [];
-        // Or throw an error:
-        // throw new Error("The AI model returned no flashcards. Please try again with different material or adjust quiz length.");
     }
     return result.flashcards;
   } catch (error) {
@@ -56,12 +60,20 @@ export async function generateQuizAction(
   }
 }
 
+// Updated to accept optional userAnswers
+export interface GenerateAndAnalyzeExamActionInput extends GenerateExamAndAnalyzeInput {}
+
 export async function generateAndAnalyzeExamAction(
-  input: GenerateExamAndAnalyzeInput
+  input: GenerateAndAnalyzeExamActionInput
 ): Promise<GenerateExamAndAnalyzeOutput> {
   try {
-    // The numberOfQuestions is fixed at 70 as per requirements.
-    const result = await generateExamAndAnalyzeFlow({ ...input, numberOfQuestions: 70 });
+    // The numberOfQuestions is defaulted to 30 in the flow if not provided.
+    // Pass userAnswers if they exist in the input.
+    const result = await generateExamAndAnalyzeFlow({ 
+      courseMaterial: input.courseMaterial, 
+      numberOfQuestions: input.numberOfQuestions || 30, // Explicitly set to 30 if not provided from UI
+      userAnswers: input.userAnswers 
+    });
     return result;
   } catch (error) {
     console.error('Error in generateAndAnalyzeExamAction:', error);
@@ -116,6 +128,7 @@ export async function explainTermAction(input: ExplainTermInput): Promise<Explai
 }
 
 
-// Export Flashcard type for frontend usage
-export type { Flashcard };
+// Export types for frontend usage
+export type { Flashcard, ExamQuestion, ExamResult };
 export type { ExplainTermInput, ExplainTermOutput };
+export type { GenerateExamAndAnalyzeOutput, GenerateExamAndAnalyzeInput };
