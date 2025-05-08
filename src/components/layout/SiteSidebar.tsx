@@ -15,20 +15,18 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
   LayoutDashboard,
-  FileText,
-  ListChecks,
-  ClipboardEdit,
   BarChart3,
   BookOpenText,
   LogOut,
+  Folders, // Using Folders icon for subjects/dashboard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/notes', label: 'Dynamic Notes', icon: FileText },
-  { href: '/quizzes', label: 'Quizzes', icon: ListChecks },
-  { href: '/exams', label: 'Exams', icon: ClipboardEdit },
+  { href: '/', label: 'Dashboard (Subjects)', icon: Folders },
+  // { href: '/notes', label: 'Dynamic Notes', icon: FileText }, // Removed
+  // { href: '/quizzes', label: 'Quizzes', icon: ListChecks }, // Removed
+  // { href: '/exams', label: 'Exams', icon: ClipboardEdit }, // Removed
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
@@ -55,7 +53,7 @@ export default function SiteSidebar() {
                   asChild
                   className={cn(
                     'justify-start',
-                    pathname === item.href && 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    (pathname === item.href || (item.href === '/' && pathname.startsWith('/subjects'))) && 'bg-sidebar-accent text-sidebar-accent-foreground'
                   )}
                   tooltip={item.label}
                   aria-current={pathname === item.href ? 'page' : undefined}
