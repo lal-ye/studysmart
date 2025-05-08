@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Input } from '@/components/ui/input';
@@ -34,8 +35,8 @@ export default function FileUpload({
     const storedFiles = Object.entries(localStorage)
       .filter(([key]) => key.startsWith('pdf-cache-'))
       .map(([key, value]) => {
-        const parts = key.split('-');
-        return { name: parts[2], cacheKey: key };
+        const namePart = key.substring('pdf-cache-'.length, key.lastIndexOf('-')); // Extract name
+        return { name: namePart || 'Unnamed PDF', cacheKey: key };
       });
 
     setCachedFiles(storedFiles);
@@ -46,13 +47,10 @@ export default function FileUpload({
       const cachedContent = localStorage.getItem(pdfCacheKey);
       if (cachedContent) {
         onFileRead(cachedContent, fileName || 'Cached PDF');
-        toast({
-          title: 'PDF Loaded from Cache',
-          description: `${fileName || 'PDF'} content loaded from local cache.`,
-        });
+        // Toast notification for loading from cache removed as per user request.
       }
     }
-  }, [pdfCacheKey, fileName, onFileRead, toast]);
+  }, [pdfCacheKey, fileName, onFileRead]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -105,14 +103,17 @@ export default function FileUpload({
               const result = await extractTextFromPdfAction({ pdfDataUri });
               onFileRead(result.extractedText, file.name);
               localStorage.setItem(cacheKey, result.extractedText); // Cache the content
-              setCachedFiles((prevFiles) => [
-                ...prevFiles,
-                { name: file.name, cacheKey: cacheKey },
-              ]);
+              setCachedFiles((prevFiles) => {
+                // Avoid duplicates if somehow already present
+                if (!prevFiles.find(f => f.cacheKey === cacheKey)) {
+                   return [...prevFiles, { name: file.name, cacheKey: cacheKey }];
+                }
+                return prevFiles;
+              });
               setPdfCacheKey(cacheKey); // Activate the cache loading useEffect
               toast({
                 title: 'PDF Processed',
-                description: `Text extracted from ${file.name} and loaded.`,
+                description: `Text extracted from ${file.name} and loaded. It is now cached for faster access.`,
               });
             } catch (pdfError) {
               console.error('Error processing PDF with GenAI:', pdfError);
@@ -147,13 +148,13 @@ export default function FileUpload({
       fileInput.value = '';
     }
     setFileName(null);
-    onFileRead('');
+    onFileRead(''); // Clear parent component's state
     setPdfCacheKey(null); // Clear cache key when file is cleared
   };
 
   const handleCachedFileSelect = (cacheKey: string, name: string) => {
     setFileName(name);
-    setPdfCacheKey(cacheKey);
+    setPdfCacheKey(cacheKey); // This will trigger the useEffect to load from cache
   };
 
   const handleRemoveCachedFile = (cacheKeyToRemove: string) => {
@@ -161,11 +162,18 @@ export default function FileUpload({
     setCachedFiles((prevFiles) =>
       prevFiles.filter((file) => file.cacheKey !== cacheKeyToRemove)
     );
-    clearFile();
+    // If the removed file was the currently loaded one, clear it
+    if (pdfCacheKey === cacheKeyToRemove) {
+      clearFile();
+    }
+    toast({
+        title: "Cached File Removed",
+        description: "The selected document has been removed from the local cache."
+    })
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Label htmlFor="courseMaterialFile">Upload Course Material ({acceptedFileTypes})</Label>
 
       <div className="flex items-center gap-2">
@@ -184,6 +192,7 @@ export default function FileUpload({
             onClick={() => clearFile()}
             aria-label="Clear file"
             disabled={isProcessing}
+            className="text-muted-foreground hover:text-destructive"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -192,7 +201,7 @@ export default function FileUpload({
 
       {fileName && !isProcessing && <p className="text-sm text-muted-foreground">Loaded: {fileName}</p>}
       {isProcessing && (
-        <div className="flex items-center text-sm text-primary">
+        <div className="flex items-center text-sm text-primary pt-1">
           <LoadingSpinner size={16} className="mr-2" />
           Processing {fileName ? `'${fileName}'` : 'file'}, please wait... This may take a moment for PDFs.
         </div>
@@ -201,17 +210,20 @@ export default function FileUpload({
       <p className="text-xs text-muted-foreground">
         Supports .txt and .pdf files up to {maxFileSizeMB}MB. For other formats, please copy and paste
         the text content into the text area below. PDF processing uses AI and may take a few moments.
+        Uploaded PDFs are cached in your browser for faster access next time.
       </p>
 
       {cachedFiles.length > 0 && (
-        <div>
-          <Label>Cached Documents</Label>
-          <ul className="mt-1 space-y-1">
+        <div className="pt-2">
+          <Label className="text-sm font-medium">Cached Documents</Label>
+          <ul className="mt-1 space-y-1.5 max-h-40 overflow-y-auto pr-2">
             {cachedFiles.map((file) => (
-              <li key={file.cacheKey} className="flex items-center justify-between p-2 border rounded-md bg-muted/20">
+              <li key={file.cacheKey} className="flex items-center justify-between p-2.5 border rounded-md bg-muted/30 hover:bg-muted/50 transition-colors">
                 <button
                   onClick={() => handleCachedFileSelect(file.cacheKey, file.name)}
-                  className="text-sm hover:underline text-left"
+                  className="text-sm text-left flex-grow hover:underline focus:outline-none focus:ring-1 focus:ring-primary rounded-sm px-1"
+                  disabled={isProcessing}
+                  title={`Load ${file.name}`}
                 >
                   {file.name}
                 </button>
@@ -219,10 +231,11 @@ export default function FileUpload({
                     variant="ghost"
                     size="icon"
                     onClick={() => handleRemoveCachedFile(file.cacheKey)}
-                    aria-label="Remove cached file"
+                    aria-label={`Remove ${file.name} from cache`}
                     disabled={isProcessing}
+                    className="text-muted-foreground hover:text-destructive h-7 w-7 ml-2"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3.5 w-3.5" />
                   </Button>
               </li>
             ))}
