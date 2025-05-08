@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { ResponsiveContainer, BarChart, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, Line, LineChart } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { getAnalyticsDataAction, type AnalyticsSummary, type DatedScore, type TopicPerformance, type QuizScoreDistributionItem } from '@/lib/actions';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -118,13 +118,13 @@ export default function AnalyticsPage() {
         <CardContent className="h-[350px]">
           {overallScoreProgress.length > 0 ? (
             <ChartContainer config={overallProgressChartConfig} className="w-full h-full">
-              <RechartsLineChart data={overallScoreProgress} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+              <LineChart data={overallScoreProgress} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                 <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
                 <YAxis domain={[0, 100]} unit="%" />
                 <Tooltip content={<ChartTooltipContent indicator="line" />} />
                 <Legend />
                 <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
-              </RechartsLineChart>
+              </LineChart>
             </ChartContainer>
           ) : (
             <p className="text-center text-muted-foreground py-10">No score progress data available.</p>
@@ -139,13 +139,13 @@ export default function AnalyticsPage() {
         <CardContent className="h-[350px]">
          {topicPerformance.length > 0 ? (
             <ChartContainer config={topicPerformanceChartConfig} className="w-full h-full">
-              <RechartsBarChart data={topicPerformance} layout="vertical" margin={{ right: 30 }}>
+              <BarChart data={topicPerformance} layout="vertical" margin={{ right: 30 }}>
                 <XAxis type="number" domain={[0, 100]} unit="%" />
                 <YAxis dataKey="topic" type="category" width={100} tickLine={false} axisLine={false}/>
                 <Tooltip content={<ChartTooltipContent indicator="dot" />} />
                 <Legend />
                 <Bar dataKey="accuracy" fill="var(--color-accuracy)" radius={4} name="Accuracy" />
-              </RechartsBarChart>
+              </BarChart>
             </ChartContainer>
          ) : (
             <p className="text-center text-muted-foreground py-10">No topic performance data available.</p>
@@ -161,7 +161,7 @@ export default function AnalyticsPage() {
           <CardContent className="h-[300px]">
             {quizScoreDistribution.length > 0 ? (
               <ChartContainer config={{}} className="w-full h-full">
-                  <RechartsPieChart>
+                  <PieChart>
                       <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
                       <Pie data={quizScoreDistribution} dataKey="score" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
                           {quizScoreDistribution.map((entry, index) => (
@@ -169,7 +169,7 @@ export default function AnalyticsPage() {
                           ))}
                       </Pie>
                       <Legend/>
-                  </RechartsPieChart>
+                  </PieChart>
               </ChartContainer>
             ) : (
               <p className="text-center text-muted-foreground py-10">No quiz score data available.</p>
