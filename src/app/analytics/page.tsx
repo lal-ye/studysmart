@@ -3,11 +3,14 @@
 import { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
-import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, /* Line,*/ LineChart as RechartsLineChart, Line as RechartsLine, Bar as RechartsBar } from 'recharts';
+import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, RechartsLineChart, Line as RechartsLine, Bar as RechartsBar } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { getAnalyticsDataAction, type AnalyticsSummary, type DatedScore, type TopicPerformance, type QuizScoreDistributionItem } from '@/lib/actions';
+import { getAnalyticsDataAction, type AnalyticsSummary, type DatedScore, type TopicPerformance, type QuizScoreDistributionItem, type ExamResult } from '@/lib/actions';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+
 
 const overallProgressChartConfig = {
   score: {
@@ -26,6 +29,7 @@ const topicPerformanceChartConfig = {
 
 export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary | null>(null);
+    const [examResults, setExamResults] = useState<ExamResult[][]>([]);
   const [isFetching, startFetchingTransition] = useTransition();
   const { toast } = useToast();
 
@@ -34,6 +38,11 @@ export default function AnalyticsPage() {
       try {
         const data = await getAnalyticsDataAction();
         setAnalyticsData(data);
+           // Aggregate exam results from analytics data
+        const examResultsFromAnalytics = data?.overallScoreProgress
+            .filter(item => item.type === 'Exam')
+            .map(item => (item as any).results || []) || []; // Assuming 'results' field exists in the Exam type
+        setExamResults(examResultsFromAnalytics);
       } catch (error) {
         console.error("Failed to fetch analytics data:", error);
         toast({
@@ -88,6 +97,9 @@ export default function AnalyticsPage() {
     "hsl(var(--chart-5))",
   ];
 
+    // Aggregate exam results to determine overall exam performance
+    const examScores: DatedScore[] = overallScoreProgress.filter(item => item.type === 'Exam');
+
 
   return (
     <div className="space-y-6">
@@ -123,7 +135,7 @@ export default function AnalyticsPage() {
                 <YAxis domain={[0, 100]} unit="%" />
                 <Tooltip content={<ChartTooltipContent indicator="line" />} />
                 <Legend />
-                <RechartsLine type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
+                   <RechartsLine type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-score)" }} activeDot={{ r: 6 }} name="Score" />
               </RechartsLineChart>
             </ChartContainer>
           ) : (
@@ -135,6 +147,7 @@ export default function AnalyticsPage() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Topic Performance (Accuracy %)</CardTitle>
+        CardDescription>
         </CardHeader>
         <CardContent className="h-[350px]">
          {topicPerformance.length > 0 ? (
@@ -144,7 +157,7 @@ export default function AnalyticsPage() {
                 <YAxis dataKey="topic" type="category" width={100} tickLine={false} axisLine={false}/>
                 <Tooltip content={<ChartTooltipContent indicator="dot" />} />
                 <Legend />
-                <RechartsBar dataKey="accuracy" fill="var(--color-accuracy)" radius={4} name="Accuracy" />
+                   <RechartsBar dataKey="accuracy" fill="var(--color-accuracy)" radius={4} name="Accuracy" />
               </RechartsBarChart>
             </ChartContainer>
          ) : (
@@ -210,6 +223,51 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+        {/* Display Exam Results */}
+        {examResults.length > 0 && (
+            <Card className="shadow-md">
+                <CardHeader>
+                    <CardTitle>Previous Exam Results</CardTitle>
+                    <CardDescription>Review detailed results from your past exams.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Accordion type="single" collapsible className="w-full">
+                        {examResults.map((exam, index) => (
+                            <AccordionItem value={`exam-${index}`} key={index}>
+                                <AccordionTrigger className="text-left hover:no-underline">
+                                    <div className="flex items-center justify-between w-full">
+                                        <span>Exam {index + 1}</span>
+                                        <Badge variant="secondary">
+                                            Score: {exam.filter(r => r.isCorrect).length} / {exam.length}
+                                        </Badge>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="text-sm">
+                                    <ul>
+                                        {exam.map((result, i) => (
+                                            <li key={i} className="py-2">
+                                                <p>
+                                                    <strong>Question:</strong> {result.question}
+                                                </p>
+                                                <p>
+                                                    <strong>Your Answer:</strong> {result.userAnswer}
+                                                </p>
+                                                <p>
+                                                    <strong>Correct Answer:</strong> {result.correctAnswer}
+                                                </p>
+                                                <Badge variant={result.isCorrect ? "default" : "destructive"}>
+                                                    {result.isCorrect ? "Correct" : "Incorrect"}
+                                                </Badge>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                    </Accordion>
+                </CardContent>
+            </Card>
+        )}
     </div>
   );
 }
@@ -236,5 +294,3 @@ function InfoCard({ title, value, icon, description }: InfoCardProps) {
     </Card>
   );
 }
-
-
