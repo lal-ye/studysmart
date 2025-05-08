@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, type CSSProperties } from 'react';
@@ -13,6 +12,7 @@ import { generateQuizAction, type Flashcard } from '@/lib/actions'; // Import Fl
 import FileUpload from '@/components/common/FileUpload';
 import { HelpCircle, Sparkles, Tags, CheckCircle, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface FlashcardComponentProps {
   flashcard: Flashcard;
@@ -62,47 +62,40 @@ function FlashcardComponent({ flashcard }: FlashcardComponentProps) {
   };
 
   return (
-    <div 
-      className="relative h-80 w-full md:w-96 cursor-pointer rounded-lg shadow-lg"
-      onClick={() => setIsFlipped(!isFlipped)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setIsFlipped(!isFlipped)}
-      aria-pressed={isFlipped}
-      aria-label={`Flashcard: ${flashcard.question}. Click to reveal answer.`}
-    >
-      <div style={cardStyle} className="w-full h-full">
+    
+      
         {/* Front of the card */}
-        <div style={frontStyle}>
-          <div>
+        
+          
             <p className="text-sm text-muted-foreground">Question ID: {flashcard.id}</p>
             <h3 className="text-lg font-semibold mt-2 mb-4">{flashcard.question}</h3>
-          </div>
-          <div className="flex items-center justify-between mt-auto">
+          
+          
             <Badge className={difficultyColors[flashcard.difficulty]}>{flashcard.difficulty}</Badge>
             <RotateCcw className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-          </div>
-        </div>
+          
+        
+  
 
         {/* Back of the card */}
-        <div style={backStyle}>
-          <div>
+        
+          
             <h4 className="text-md font-semibold mb-2">Answer:</h4>
             <p className="text-sm leading-relaxed">{flashcard.answer}</p>
-          </div>
-          <div className="mt-auto">
+          
+          
             {flashcard.tags && flashcard.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-3">
+              
                 <Tags className="h-4 w-4 mr-1 self-center" />
                 {flashcard.tags.map(tag => (
                   <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                 ))}
-              </div>
+              
             )}
-          </div>
-        </div>
-      </div>
-    </div>
+          
+        
+      
+    
   );
 }
 
@@ -225,7 +218,7 @@ export default function QuizzesPage() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {generatedFlashcards.map((fc) => (
-                <FlashcardComponent key={fc.id} flashcard={fc} />
+                 <FlashcardComponent key={fc.id} flashcard={fc} />
               ))}
             </div>
           </CardContent>
