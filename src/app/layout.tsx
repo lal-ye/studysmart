@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { JetBrains_Mono } from 'next/font/google'; // Changed import
+import { JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import AppLayout from '@/components/layout/AppLayout';
@@ -22,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} dark`}> {/* Apply JetBrains Mono variable and dark theme */}
-      <body className="font-mono bg-background text-foreground"> {/* font-mono will use the CSS variable */}
+    <html lang="en" className="dark">
+      <body className={`${jetbrainsMono.variable} font-mono bg-background text-foreground`}>
         <AppLayout>
           {children}
         </AppLayout>
