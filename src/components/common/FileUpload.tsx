@@ -1,16 +1,14 @@
-
 'use client';
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type React from 'react';
-import { useState, useTransition } from 'react';
-import { Button } from '@/components/ui/button'; 
+import { useState, useTransition, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import { FileUp, X } from 'lucide-react';
 import { extractTextFromPdfAction } from '@/lib/actions';
 import LoadingSpinner from './LoadingSpinner';
-
 
 interface FileUploadProps {
   onFileRead: (content: string, fileName?: string) => void;
@@ -18,15 +16,28 @@ interface FileUploadProps {
   maxFileSizeMB?: number;
 }
 
-export default function FileUpload({ 
-  onFileRead, 
-  acceptedFileTypes = ".txt,.pdf", 
-  maxFileSizeMB = 10 
+export default function FileUpload({
+  onFileRead,
+  acceptedFileTypes = '.txt,.pdf',
+  maxFileSizeMB = 10,
 }: FileUploadProps) {
   const { toast } = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
   const [isProcessing, startProcessingTransition] = useTransition();
+  const [pdfCacheKey, setPdfCacheKey] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (pdfCacheKey) {
+      const cachedContent = localStorage.getItem(pdfCacheKey);
+      if (cachedContent) {
+        onFileRead(cachedContent, fileName || 'Cached PDF');
+        toast({
+          title: 'PDF Loaded from Cache',
+          description: `${fileName || 'PDF'} content loaded from local cache.`,
+        });
+      }
+    }
+  }, [pdfCacheKey, fileName, onFileRead, toast]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -41,7 +52,15 @@ export default function FileUpload({
         return;
       }
 
-      setFileName(file.name); 
+      setFileName(file.name);
+      const cacheKey = `pdf-cache-${file.name}-${file.size}`; // Include size in key
+
+      // Check if content is already cached
+      const cachedContent = localStorage.getItem(cacheKey);
+      if (cachedContent) {
+        setPdfCacheKey(cacheKey); // Activate the cache loading useEffect
+        return; // Exit early as content will be loaded from cache in useEffect
+      }
 
       startProcessingTransition(async () => {
         if (file.type === 'text/plain') {
@@ -70,6 +89,8 @@ export default function FileUpload({
             try {
               const result = await extractTextFromPdfAction({ pdfDataUri });
               onFileRead(result.extractedText, file.name);
+              localStorage.setItem(cacheKey, result.extractedText); // Cache the content
+              setPdfCacheKey(cacheKey); // Activate the cache loading useEffect
               toast({
                 title: 'PDF Processed',
                 description: `Text extracted from ${file.name} and loaded.`,
@@ -78,10 +99,13 @@ export default function FileUpload({
               console.error('Error processing PDF with GenAI:', pdfError);
               toast({
                 title: 'Error Processing PDF',
-                description: (pdfError instanceof Error ? pdfError.message : 'Could not extract text from the PDF using AI.'),
+                description:
+                  pdfError instanceof Error
+                    ? pdfError.message
+                    : 'Could not extract text from the PDF using AI.',
                 variant: 'destructive',
               });
-              clearFile(event.target); 
+              clearFile(event.target);
             }
           };
           reader.onerror = () => {
@@ -92,7 +116,7 @@ export default function FileUpload({
             });
             clearFile(event.target);
           };
-          reader.readAsDataURL(file); 
+          reader.readAsDataURL(file);
         } else {
           toast({
             title: 'Unsupported File Type',
@@ -106,12 +130,14 @@ export default function FileUpload({
   };
 
   const clearFile = (inputElement: HTMLInputElement | null = null) => {
-    const fileInput = inputElement || document.getElementById('courseMaterialFile') as HTMLInputElement | null;
+    const fileInput =
+      inputElement || (document.getElementById('courseMaterialFile') as HTMLInputElement | null);
     if (fileInput) {
-      fileInput.value = ""; 
+      fileInput.value = '';
     }
     setFileName(null);
-    onFileRead(""); 
+    onFileRead('');
+    setPdfCacheKey(null); // Clear cache key when file is cleared
   };
 
   return (
@@ -127,7 +153,13 @@ export default function FileUpload({
           disabled={isProcessing}
         />
         {fileName && (
-          <Button variant="ghost" size="icon" onClick={() => clearFile()} aria-label="Clear file" disabled={isProcessing}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => clearFile()}
+            aria-label="Clear file"
+            disabled={isProcessing}
+          >
             <X className="h-4 w-4" />
           </Button>
         )}
@@ -139,10 +171,10 @@ export default function FileUpload({
           Processing {fileName ? `'${fileName}'` : 'file'}, please wait... This may take a moment for PDFs.
         </div>
       )}
-       <p className="text-xs text-muted-foreground">
-        Supports .txt and .pdf files up to {maxFileSizeMB}MB. For other formats, please copy and paste the text content into the text area below. PDF processing uses AI and may take a few moments.
+      <p className="text-xs text-muted-foreground">
+        Supports .txt and .pdf files up to {maxFileSizeMB}MB. For other formats, please copy and paste
+        the text content into the text area below. PDF processing uses AI and may take a few moments.
       </p>
     </div>
   );
 }
-
