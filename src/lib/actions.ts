@@ -1,7 +1,7 @@
 'use server';
 
 import { generateDynamicNotes as generateDynamicNotesFlow, type GenerateDynamicNotesInput } from '@/ai/flows/generate-dynamic-notes';
-import { generateQuiz, type GenerateQuizInput } from '@/ai/flows/generate-quiz'; // Updated import
+import { generateQuiz, type GenerateQuizInput, type GenerateQuizOutput, type Flashcard } from '@/ai/flows/generate-quiz';
 import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput, type GenerateExamAndAnalyzeOutput } from '@/ai/flows/generate-exam-and-analyze';
 import { generateExtraReadings as generateExtraReadingsFlow, type GenerateExtraReadingsInput, type GenerateExtraReadingsOutput } from '@/ai/flows/generate-extra-readings';
 import { extractTextFromPdf as extractTextFromPdfFlow, type ExtractTextFromPdfInput, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
@@ -33,21 +33,21 @@ export async function generateNotesAction(
 
 export async function generateQuizAction(
   input: GenerateQuizInput
-): Promise<string> {
+): Promise<Flashcard[]> {
   try {
-    // Call the exported wrapper function `generateQuiz`
-    const result = await generateQuiz(input); 
+    const result: GenerateQuizOutput = await generateQuiz(input); 
 
-    // Check if the returned quiz string is empty or only whitespace
-    if (!result.quiz || result.quiz.trim() === "") {
-        console.warn('[StudySmarts Debug - generateQuizAction] AI returned an empty quiz.');
-        throw new Error("The AI model returned an empty quiz. Please try again with different material or adjust quiz length.");
+    if (!result.flashcards || result.flashcards.length === 0) {
+        console.warn('[StudySmarts Debug - generateQuizAction] AI returned an empty set of flashcards.');
+        // Consistently throw an error if the expectation is to always have flashcards.
+        // Or, return an empty array if that's an acceptable outcome for the UI to handle.
+        // For now, throwing error to make it explicit.
+        throw new Error("The AI model returned no flashcards. Please try again with different material or adjust quiz length.");
     }
-    return result.quiz;
+    return result.flashcards;
   } catch (error) {
     console.error('[StudySmarts Debug - generateQuizAction] Error generating quiz:', error);
     if (error instanceof Error) {
-      // Propagate the specific error message from the flow or wrapper
       throw new Error(error.message); 
     }
     throw new Error('Failed to generate quiz due to an unknown server error. Please try again.');
@@ -99,3 +99,6 @@ export async function extractTextFromPdfAction(
     throw new Error(`Failed to extract text from PDF: ${message}`);
   }
 }
+
+// Export Flashcard type for frontend usage
+export type { Flashcard };
