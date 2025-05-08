@@ -242,7 +242,7 @@ export default function QuizzesPage() {
         }
         setGeneratedFlashcards(flashcards);
       } catch (error) {
-        toast({ title: 'Error Generating Quiz', description: (error as Error).message, variant: 'destructive', icon: <AlertTriangle className="h-5 w-5" /> });
+        toast({ title: 'Error Generating Quiz', description: (error as Error).message || 'The AI model returned an empty quiz. Please try again with different material or adjust quiz length.', variant: 'destructive', icon: <AlertTriangle className="h-5 w-5" /> });
         setGeneratedFlashcards([]);
       }
     });
@@ -345,7 +345,19 @@ export default function QuizzesPage() {
               id="quizLength"
               type="number"
               value={quizLength}
-              onChange={(e) => setQuizLength(parseInt(e.target.value, 10))}
+              onChange={(e) => {
+                const rawValue = e.target.value;
+                if (rawValue === '') {
+                  setQuizLength(1); // Default to min 1 if input is cleared
+                } else {
+                  const num = parseInt(rawValue, 10);
+                  if (!isNaN(num)) {
+                    const boundedNum = Math.max(1, Math.min(20, num));
+                    setQuizLength(boundedNum);
+                  }
+                  // If num is NaN from a non-empty string, do nothing, keep last valid quizLength
+                }
+              }}
               min="1"
               max="20"
             />
@@ -389,7 +401,7 @@ export default function QuizzesPage() {
         </Card>
       )}
 
-      {!isGeneratingQuiz && generatedFlashcards.length === 0 && courseMaterial.trim() && (
+      {!isGeneratingQuiz && generatedFlashcards.length === 0 && courseMaterial.trim() && !isGeneratingQuiz && ( // Added !isGeneratingQuiz here
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-muted-foreground">No flashcards were generated. Try adjusting the material or quiz length.</p>
