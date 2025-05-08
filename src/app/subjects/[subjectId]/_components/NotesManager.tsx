@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useTransition, useEffect, useRef, useCallback } from 'react';
@@ -9,7 +10,20 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { generateNotesAction, type GenerateNotesActionInput, type StoredNote } from '@/lib/actions';
 import FileUpload from '@/components/common/FileUpload';
-import { Lightbulb, Sparkles, Download, Copy, Printer, Trash2, Edit, Save, PlusCircle, Eye } from 'lucide-react';
+import { 
+    Lightbulb as TipIcon, 
+    Sparkles, 
+    Download, 
+    Copy, 
+    Printer, 
+    Trash2, 
+    Edit, 
+    Save, 
+    PlusCircle, 
+    Eye,
+    Info as NoteIcon,
+    AlertTriangle as WarningIcon
+} from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { cn } from '@/lib/utils';
@@ -306,26 +320,9 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       
       let htmlToPrint = '';
        if (notesOutputRef.current && (isViewingNote || generatedNotesContent)) {
-         // Create a temporary div, render ReactMarkdown to it, then get its innerHTML
-         // This ensures that Mermaid diagrams are also included as SVGs if rendered
-        const tempContainer = document.createElement('div');
-        // Temporarily assign the ref to this new container to capture its content
-        const originalRefCurrent = notesOutputRef.current;
-        (notesOutputRef as React.MutableRefObject<HTMLDivElement | null>).current = tempContainer;
-
-        // This is tricky because ReactMarkdown is declarative. A better way for PDF might be server-side generation.
-        // For client-side, we can try to get the innerHTML of the rendered component.
-        // However, mermaid diagrams are rendered async.
-        // A simpler approach is to render the markdown again in the new window, but ensure styles apply.
-
-        // For now, let's just use the raw markdown and style it for print.
-        // This will not render mermaid diagrams in the PDF unless mermaid is run in the new window too.
-        // A full solution for mermaid in PDF from client-side is complex.
-        
         const renderedContentContainer = document.createElement('div');
-        renderedContentContainer.innerHTML = notesOutputRef.current.innerHTML; // Get current rendered HTML
+        renderedContentContainer.innerHTML = notesOutputRef.current.innerHTML; 
         
-        // Attempt to re-run mermaid in the print window (might not always work perfectly due to timing)
         printWindow.document.write(`<div class="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none">${renderedContentContainer.innerHTML}</div>`);
         printWindow.document.write(`<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>`);
         printWindow.document.write(`<script>mermaid.initialize({startOnLoad: true, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default'}); mermaid.run();</script>`);
@@ -340,22 +337,107 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       printWindow.focus();
       setTimeout(() => {
         printWindow.print();
-      }, 1000); // Increased timeout for mermaid to potentially render
+      }, 1000); 
       toast({ title: 'Print to PDF', description: 'Use browser\'s print dialog.' });
     } else {
       toast({ title: 'Print Failed', variant: 'destructive' });
     }
   };
   
-  // Define markdownComponents inside the component to access setDiagramCode
   const markdownComponents = {
+      span: ({ node, className, children, ...props }: any) => {
+        if (className === 'citation') {
+          return (
+            <span
+              className="inline-block px-2 py-0.5 mx-0.5 text-xs font-semibold text-primary bg-primary/10 rounded-full border border-primary/30 align-middle leading-none"
+              {...props}
+            >
+              {children}
+            </span>
+          );
+        }
+        return <span className={className} {...props}>{children}</span>;
+      },
+      blockquote: ({ node, children, ...props }: any) => {
+        let calloutType: 'NOTE' | 'IMPORTANT' | 'TIP' | null = null;
+        let finalCalloutContent = children; 
+  
+        if (Array.isArray(children) && children.length > 0 && children[0].type === 'p') {
+          const pElement = children[0];
+          const pChildren = React.Children.toArray(pElement.props.children);
+  
+          if (pChildren.length > 0 && typeof pChildren[0] === 'string') {
+            let firstChildText = pChildren[0] as string;
+            let textModified = false;
+  
+            if (firstChildText.startsWith('[!NOTE]')) {
+              calloutType = 'NOTE';
+              firstChildText = firstChildText.substring('[!NOTE]'.length).trimStart();
+              textModified = true;
+            } else if (firstChildText.startsWith('[!IMPORTANT]')) {
+              calloutType = 'IMPORTANT';
+              firstChildText = firstChildText.substring('[!IMPORTANT]'.length).trimStart();
+              textModified = true;
+            } else if (firstChildText.startsWith('[!TIP]')) {
+              calloutType = 'TIP';
+              firstChildText = firstChildText.substring('[!TIP]'.length).trimStart();
+              textModified = true;
+            }
+  
+            if (textModified) {
+              const updatedPChildren = firstChildText.length > 0 ? [firstChildText, ...pChildren.slice(1)] : pChildren.slice(1);
+              const updatedPElement = React.cloneElement(pElement, { children: updatedPChildren });
+              finalCalloutContent = [updatedPElement, ...React.Children.toArray(children).slice(1)];
+            }
+          }
+        }
+  
+        if (calloutType) {
+          let iconComponent;
+          let borderColorClass, bgColorClass, iconColorClass;
+  
+          switch (calloutType) {
+            case 'NOTE':
+              iconComponent = <NoteIcon className="h-5 w-5" />;
+              borderColorClass = 'border-blue-500 dark:border-blue-400';
+              bgColorClass = 'bg-blue-50 dark:bg-blue-900/20'; // Adjusted dark background
+              iconColorClass = 'text-blue-600 dark:text-blue-400';
+              break;
+            case 'IMPORTANT':
+              iconComponent = <WarningIcon className="h-5 w-5" />;
+              borderColorClass = 'border-yellow-500 dark:border-yellow-400';
+              bgColorClass = 'bg-yellow-50 dark:bg-yellow-900/20'; // Adjusted dark background
+              iconColorClass = 'text-yellow-600 dark:text-yellow-400';
+              break;
+            case 'TIP':
+              iconComponent = <TipIcon className="h-5 w-5" />;
+              borderColorClass = 'border-green-500 dark:border-green-400';
+              bgColorClass = 'bg-green-50 dark:bg-green-900/20'; // Adjusted dark background
+              iconColorClass = 'text-green-600 dark:text-green-400';
+              break;
+            default: // Should not happen if calloutType is set
+              return <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm text-muted-foreground" {...props}>{children}</blockquote>;
+          }
+  
+          return (
+            <div className={cn('my-4 p-4 border-l-4 rounded-md shadow-sm', borderColorClass, bgColorClass, (props as any).className)}>
+              <div className="flex items-start">
+                <div className={cn("flex-shrink-0 mr-3", iconColorClass)}>{iconComponent}</div>
+                {/* Content inside callout should use default prose styling for text color */}
+                <div className="flex-grow text-sm">{finalCalloutContent}</div> 
+              </div>
+            </div>
+          );
+        }
+        // Default blockquote styling if not a recognized callout
+        return <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm text-muted-foreground" {...props}>{children}</blockquote>;
+      },
       pre: ({ node, ...props }: any) => {
           const childrenArray = React.Children.toArray(props.children);
           const codeChild = childrenArray.find((child: any) => React.isValidElement(child) && child.props.className?.includes('language-mermaid')) as React.ReactElement | undefined;
           if (React.isValidElement(codeChild) && codeChild.props.className?.includes('language-mermaid')) {
-          // For Mermaid, we render the button and the code block itself for inline view
           return (
-            <div className="my-4"> {/* Container for button and code block */}
+            <div className="my-4"> 
               <Button
                 variant="outline"
                 size="sm"
@@ -374,8 +456,6 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       code: ({ node, inline, className, children, ...props }: any) => {
           const match = /language-(\w+)/.exec(className || '');
           if (match && match[1] === 'mermaid' && !inline) {
-            // This code element is part of the <pre> handled above, which includes the button.
-            // The actual Mermaid rendering for inline is done via its class.
             return <code className="language-mermaid" {...props}>{String(children).replace(/\n$/, '')}</code>;
           }
           return (
@@ -391,7 +471,6 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       td: ({node, ...props}: any) => <td className="border border-border px-4 py-2 text-card-foreground" {...props} />,
       details: ({node, ...props}: any) => <details className="my-4 p-3 border rounded-md bg-card shadow-sm open:ring-1 open:ring-primary" {...props} />,
       summary: ({node, ...props}: any) => <summary className="font-semibold cursor-pointer hover:text-primary list-inside text-card-foreground" {...props} />,
-      blockquote: ({node, ...props}: any) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm text-muted-foreground" {...props} />,
       h1: ({node, ...props}: any) => <h1 className="text-3xl lg:text-4xl font-extrabold my-5 text-primary border-b border-border pb-2" {...props} />,
       h2: ({node, ...props}: any) => <h2 className="text-2xl lg:text-3xl font-bold my-4 text-foreground border-b border-border pb-1" {...props} />,
       h3: ({node, ...props}: any) => <h3 className="text-xl lg:text-2xl font-semibold my-3 text-foreground" {...props} />,
@@ -471,7 +550,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             </CardContent>
             <CardFooter>
             <Button onClick={handleGenerateNotes} disabled={isGeneratingNotes || !courseMaterial.trim()} aria-label="Generate notes from provided material">
-                {isGeneratingNotes ? <LoadingSpinner className="mr-2" /> : <Lightbulb className="mr-2 h-4 w-4" />}
+                {isGeneratingNotes ? <LoadingSpinner className="mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Generate Notes ({generationProgress > 0 && generationProgress < 100 ? `${generationProgress}%` : 'Start'})
             </Button>
             </CardFooter>
@@ -560,7 +639,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             </div>
           </CardContent>
           <CardFooter className="flex-wrap gap-2 justify-end">
-             <Button onClick={() => editNote(selectedNote)} variant="outline" aria-label={`Edit note ${selectedNote.sourceName}`}>
+             <Button onClick={() => editNote(selectedNote)} variant="outline" aria-label={`Edit note ${selectedNote.sourceName || 'this note'}`}>
               <Edit className="mr-2 h-4 w-4" /> Edit
             </Button>
             <Button onClick={() => handleExportMarkdown(selectedNote.content, selectedNote.sourceName || 'notes')} variant="outline" aria-label="Export note as Markdown">
@@ -636,3 +715,4 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     </div>
   );
 }
+
