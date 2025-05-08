@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useTransition, useEffect } from 'react'; // Added React import
+import React, { useState, useTransition, useEffect, useRef } from 'react'; // Added React import
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,14 +13,21 @@ import FileUpload from '@/components/common/FileUpload';
 import { Lightbulb, Sparkles } from 'lucide-react';
 import remarkGfm from 'remark-gfm'; // For GFM tables, strikethrough, etc.
 import rehypeRaw from 'rehype-raw'; // To allow HTML like <details>
+import { cn } from '@/lib/utils';
 
 export default function NotesPage() {
+  // State for the Textarea's current value (immediate feedback)
+  const [textInput, setTextInput] = useState('');
+  // State for the debounced course material, used for generation logic
   const [courseMaterial, setCourseMaterial] = useState('');
   const [sourceName, setSourceName] = useState<string | undefined>(undefined);
   const [generatedNotes, setGeneratedNotes] = useState('');
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
   const [mermaidScriptLoaded, setMermaidScriptLoaded] = useState(false);
+
+  // Ref for the debounce timer
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const script = document.createElement('script');
@@ -29,13 +36,18 @@ export default function NotesPage() {
       // @ts-ignore
       if (window.mermaid) {
         // @ts-ignore
-        window.mermaid.initialize({ startOnLoad: false, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'neutral' }); 
+        window.mermaid.initialize({ startOnLoad: false, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default' });
       }
       setMermaidScriptLoaded(true);
     };
     document.head.appendChild(script);
+    
+    // Cleanup debounce timer and mermaid script on unmount
     return () => {
-      if (script.parentNode) { // Check if script is still in head before removing
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      if (script.parentNode) { 
         document.head.removeChild(script);
       }
     };
@@ -62,8 +74,29 @@ export default function NotesPage() {
     }
   }, [generatedNotes, mermaidScriptLoaded, toast]);
 
+  const handleTextInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = event.target.value;
+    setTextInput(newText); // Update text input field immediately
+
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set a new timer
+    debounceTimerRef.current = setTimeout(() => {
+      setCourseMaterial(newText); // Update the debounced state used for generation
+      if (!sourceName && newText.trim()) {
+        setSourceName("Pasted Text");
+      } else if (!newText.trim() && sourceName === "Pasted Text") {
+        // Clear sourceName if text is cleared and it was "Pasted Text"
+        setSourceName(undefined);
+      }
+    }, 500); // 500ms debounce delay
+  };
 
   const handleGenerateNotes = () => {
+    // Uses `courseMaterial` (the debounced value)
     if (!courseMaterial.trim()) {
       toast({
         title: 'Input Required',
@@ -94,8 +127,13 @@ export default function NotesPage() {
   };
 
   const handleFileRead = (content: string, fileName?: string) => {
-    setCourseMaterial(content);
+    setTextInput(content); // Update Textarea for immediate display
+    setCourseMaterial(content); // Update debounced state directly as file upload is a discrete event
     setSourceName(fileName);
+    // Clear any pending debounce from manual typing
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
   };
 
   return (
@@ -121,11 +159,8 @@ export default function NotesPage() {
             <Textarea
               id="courseMaterialText"
               placeholder="Paste your course material here..."
-              value={courseMaterial}
-              onChange={(e) => {
-                setCourseMaterial(e.target.value);
-                if (!sourceName) setSourceName("Pasted Text"); // Default source name for pasted text
-              }}
+              value={textInput} // Use textInput for immediate display
+              onChange={handleTextInputChange}
               rows={10}
               className="min-h-[200px]"
             />
@@ -168,7 +203,7 @@ export default function NotesPage() {
                     // @ts-ignore
                     if (React.isValidElement(codeChild) && codeChild.props.className?.includes('language-mermaid')) {
                        // @ts-ignore
-                       return <pre {...props} className="language-mermaid bg-background">{props.children}</pre>;
+                       return <pre {...props} className="language-mermaid bg-background text-foreground p-0">{props.children}</pre>;
                     }
                     // @ts-ignore
                     return <pre className="bg-muted/50 p-4 rounded-md overflow-auto" {...props} />;
@@ -178,36 +213,36 @@ export default function NotesPage() {
                     const match = /language-(\w+)/.exec(className || '');
                     if (match && match[1] === 'mermaid' && !inline) {
                       return (
-                        // Mermaid diagrams are rendered by mermaid.js library, keep this simple
                         <code className="language-mermaid" {...props}>
                           {children}
                         </code>
                       );
                     }
-                    // For other code blocks, apply some styling
                     return (
-                      <code className={cn(className, !inline && "block whitespace-pre-wrap p-2", inline && "px-1 py-0.5 bg-muted rounded-sm")} {...props}>
+                      <code className={cn(className, !inline && "block whitespace-pre-wrap bg-muted/50 p-2 rounded", inline && "px-1 py-0.5 bg-muted rounded-sm font-mono text-sm")} {...props}>
                         {children}
                       </code>
                     );
                   },
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-md my-4 shadow-md" alt={props.alt || ''} {...props} />,
-                  table: ({node, ...props}) => <table className="w-full my-4 border-collapse border border-border" {...props} />,
-                  thead: ({node, ...props}) => <thead className="bg-muted/50" {...props} />,
-                  th: ({node, ...props}) => <th className="border border-border px-4 py-2 text-left font-semibold" {...props} />,
-                  td: ({node, ...props}) => <td className="border border-border px-4 py-2" {...props} />,
-                  details: ({node, ...props}) => <details className="my-4 p-3 border rounded-md bg-background shadow-sm open:ring-1 open:ring-primary" {...props} />,
-                  summary: ({node, ...props}) => <summary className="font-semibold cursor-pointer hover:text-primary list-inside" {...props} />,
-                  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm" {...props} />,
-                  h1: ({node, ...props}) => <h1 className="text-3xl font-bold my-4 text-primary" {...props} />,
-                  h2: ({node, ...props}) => <h2 className="text-2xl font-semibold my-3 border-b border-border pb-1" {...props} />,
-                  h3: ({node, ...props}) => <h3 className="text-xl font-semibold my-2" {...props} />,
-                  ul: ({node, ...props}) => <ul className="list-disc pl-6 my-2 space-y-1" {...props} />,
-                  ol: ({node, ...props}) => <ol className="list-decimal pl-6 my-2 space-y-1" {...props} />,
-                  li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                  p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
-                  a: ({node, ...props}) => <a className="text-primary hover:underline" {...props} />,
+                  img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-md my-4 shadow-md border border-border" alt={props.alt || ''} {...props} />,
+                  table: ({node, ...props}) => <table className="w-full my-4 border-collapse border border-border shadow-sm" {...props} />,
+                  thead: ({node, ...props}) => <thead className="bg-muted/50 border-b border-border" {...props} />,
+                  th: ({node, ...props}) => <th className="border border-border px-4 py-2 text-left font-semibold text-card-foreground" {...props} />,
+                  td: ({node, ...props}) => <td className="border border-border px-4 py-2 text-card-foreground" {...props} />,
+                  details: ({node, ...props}) => <details className="my-4 p-3 border rounded-md bg-card shadow-sm open:ring-1 open:ring-primary" {...props} />,
+                  summary: ({node, ...props}) => <summary className="font-semibold cursor-pointer hover:text-primary list-inside text-card-foreground" {...props} />,
+                  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm text-muted-foreground" {...props} />,
+                  h1: ({node, ...props}) => <h1 className="text-3xl lg:text-4xl font-extrabold my-5 text-primary border-b border-border pb-2" {...props} />,
+                  h2: ({node, ...props}) => <h2 className="text-2xl lg:text-3xl font-bold my-4 text-foreground border-b border-border pb-1" {...props} />,
+                  h3: ({node, ...props}) => <h3 className="text-xl lg:text-2xl font-semibold my-3 text-foreground" {...props} />,
+                  h4: ({node, ...props}) => <h4 className="text-lg lg:text-xl font-semibold my-2 text-foreground" {...props} />,
+                  ul: ({node, ...props}) => <ul className="list-disc pl-6 my-3 space-y-1 text-foreground" {...props} />,
+                  ol: ({node, ...props}) => <ol className="list-decimal pl-6 my-3 space-y-1 text-foreground" {...props} />,
+                  li: ({node, ...props}) => <li className="mb-1 leading-relaxed" {...props} />,
+                  p: ({node, ...props}) => <p className="my-3 leading-relaxed text-foreground" {...props} />,
+                  a: ({node, ...props}) => <a className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring" {...props} />,
+                  hr: ({node, ...props}) => <hr className="my-6 border-border" {...props} />,
                 }}
               >
                 {generatedNotes}
@@ -219,3 +254,4 @@ export default function NotesPage() {
     </div>
   );
 }
+
