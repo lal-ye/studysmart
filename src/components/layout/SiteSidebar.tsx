@@ -1,0 +1,83 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarFooter,
+} from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+  LayoutDashboard,
+  FileText,
+  ListChecks,
+  ClipboardEdit,
+  BarChart3,
+  BookOpenText,
+  LogOut,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const navItems = [
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/notes', label: 'Dynamic Notes', icon: FileText },
+  { href: '/quizzes', label: 'Quizzes', icon: ListChecks },
+  { href: '/exams', label: 'Exams', icon: ClipboardEdit },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+];
+
+export default function SiteSidebar() {
+  const pathname = usePathname();
+
+  return (
+    <Sidebar side="left" variant="sidebar" collapsible="icon">
+      <SidebarHeader className="p-4">
+        <Link href="/" className="flex items-center gap-2 text-primary">
+          <BookOpenText className="h-7 w-7" />
+          <span className="text-xl font-semibold group-data-[collapsible=icon]:hidden">
+            StudySmarts
+          </span>
+        </Link>
+      </SidebarHeader>
+      <Separator />
+      <SidebarContent className="flex-1 p-2">
+        <SidebarMenu>
+          {navItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <Link href={item.href} legacyBehavior passHref>
+                <SidebarMenuButton
+                  asChild
+                  className={cn(
+                    'justify-start',
+                    pathname === item.href && 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  )}
+                  tooltip={item.label}
+                >
+                  <a>
+                    <item.icon className="h-5 w-5" />
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      {item.label}
+                    </span>
+                  </a>
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarContent>
+      <Separator />
+      <SidebarFooter className="p-2">
+        <Button variant="ghost" className="w-full justify-start gap-2 group-data-[collapsible=icon]:justify-center">
+          <LogOut className="h-5 w-5" />
+          <span className="group-data-[collapsible=icon]:hidden">Logout</span>
+        </Button>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
