@@ -5,6 +5,7 @@ import { generateQuiz, type GenerateQuizInput, type GenerateQuizOutput, type Fla
 import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput, type GenerateExamAndAnalyzeOutput } from '@/ai/flows/generate-exam-and-analyze';
 import { generateExtraReadings as generateExtraReadingsFlow, type GenerateExtraReadingsInput, type GenerateExtraReadingsOutput } from '@/ai/flows/generate-extra-readings';
 import { extractTextFromPdf as extractTextFromPdfFlow, type ExtractTextFromPdfInput, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
+import { explainTerm as explainTermFlow, type ExplainTermInput, type ExplainTermOutput } from '@/ai/flows/explain-term-flow';
 
 // Interface for the action to accept an optional sourceName
 export interface GenerateNotesActionInput {
@@ -39,16 +40,17 @@ export async function generateQuizAction(
 
     if (!result.flashcards || result.flashcards.length === 0) {
         console.warn('[StudySmarts Debug - generateQuizAction] AI returned an empty set of flashcards.');
-        // Consistently throw an error if the expectation is to always have flashcards.
-        // Or, return an empty array if that's an acceptable outcome for the UI to handle.
-        // For now, throwing error to make it explicit.
-        throw new Error("The AI model returned no flashcards. Please try again with different material or adjust quiz length.");
+        // Return an empty array if that's an acceptable outcome for the UI to handle.
+        return [];
+        // Or throw an error:
+        // throw new Error("The AI model returned no flashcards. Please try again with different material or adjust quiz length.");
     }
     return result.flashcards;
   } catch (error) {
     console.error('[StudySmarts Debug - generateQuizAction] Error generating quiz:', error);
     if (error instanceof Error) {
-      throw new Error(error.message); 
+      // Propagate the specific error message from the flow
+      throw new Error(error.message || 'Failed to generate quiz due to an AI model error.'); 
     }
     throw new Error('Failed to generate quiz due to an unknown server error. Please try again.');
   }
@@ -100,5 +102,20 @@ export async function extractTextFromPdfAction(
   }
 }
 
+export async function explainTermAction(input: ExplainTermInput): Promise<ExplainTermOutput> {
+  try {
+    const result = await explainTermFlow(input);
+    return result;
+  } catch (error) {
+    console.error('Error in explainTermAction:', error);
+    if (error instanceof Error) {
+      throw new Error(`Failed to explain term: ${error.message}`);
+    }
+    throw new Error('Failed to explain term due to an unknown error.');
+  }
+}
+
+
 // Export Flashcard type for frontend usage
 export type { Flashcard };
+export type { ExplainTermInput, ExplainTermOutput };
