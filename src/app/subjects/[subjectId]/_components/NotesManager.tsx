@@ -25,6 +25,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
 
 interface NotesManagerProps {
   subjectId: string;
@@ -51,6 +53,8 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const notesOutputRef = useRef<HTMLDivElement>(null);
+  const [diagramCode, setDiagramCode] = useState<string | null>(null);
+
 
   const getNotesStorageKey = () => NOTES_STORAGE_KEY_BASE; // Global key, filtered by subjectId
 
@@ -108,6 +112,28 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     }
   }, [generatedNotesContent, selectedNote, isViewingNote, mermaidScriptLoaded, toast]);
 
+  useEffect(() => {
+    if (mermaidScriptLoaded && diagramCode) {
+      try {
+        if (typeof window !== 'undefined' && (window as any).mermaid) {
+          // Ensure the modal content is available in the DOM if it's rendered conditionally
+          setTimeout(() => {
+            const modalDiagramElements = document.querySelectorAll('.mermaid-modal-content .mermaid');
+            if (modalDiagramElements.length > 0) {
+               (window as any).mermaid.run({
+                 nodes: modalDiagramElements,
+               });
+            }
+          }, 0);
+        }
+      } catch (error) {
+        console.error("Error rendering Mermaid diagram in modal:", error);
+        toast({ title: "Diagram Error", description: "Could not render the diagram.", variant: "destructive" });
+      }
+    }
+  }, [diagramCode, mermaidScriptLoaded, toast]);
+
+
   const handleTextInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = event.target.value;
     setTextInput(newText);
@@ -144,7 +170,6 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
         setGeneratedNotesContent(notes);
         setGenerationProgress(100);
         toast({ title: 'Notes Preview Ready!', description: 'Review your new notes below and save them.' });
-        // Don't save immediately, let user save explicitly
       } catch (error) {
         setGenerationProgress(0);
         toast({ title: 'Error Generating Notes', description: (error as Error).message, variant: 'destructive' });
@@ -174,8 +199,8 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       localStorage.setItem(getNotesStorageKey(), JSON.stringify(allNotes));
       
       setStoredNotes(prev => [newNote, ...prev].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      setGeneratedNotesContent(''); // Clear preview
-      setTextInput(''); // Clear input area
+      setGeneratedNotesContent(''); 
+      setTextInput(''); 
       setCourseMaterial('');
       setSourceName(undefined);
       setGenerationProgress(0);
@@ -198,7 +223,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     setSelectedNote(note);
     setIsViewingNote(true);
     setIsEditingNote(false);
-    setGeneratedNotesContent(''); // Clear any new generation preview
+    setGeneratedNotesContent(''); 
   };
 
   const editNote = (note: StoredNote) => {
@@ -223,7 +248,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             setStoredNotes(prev => prev.map(n => n.id === updatedNote.id ? updatedNote : n).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
             setSelectedNote(updatedNote);
             setIsEditingNote(false);
-            setIsViewingNote(true); // Go back to viewing mode
+            setIsViewingNote(true); 
             toast({ title: "Note Updated", description: `Notes "${updatedNote.sourceName}" saved.` });
         } else {
              toast({ title: "Error", description: "Original note not found for updating.", variant: "destructive" });
@@ -276,39 +301,107 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write('<html><head><title>Print Notes</title>');
-      printWindow.document.write('<style> body { font-family: sans-serif; margin: 20px; } .prose { max-width: 100%; } </style>');
+      printWindow.document.write('<style> body { font-family: sans-serif; margin: 20px; } .prose { max-width: 100%; } .mermaid { text-align: center; margin-bottom: 1em; } </style>');
       printWindow.document.write('</head><body>');
       
-      const printableElement = document.createElement('div');
-      printableElement.className = "prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none";
-      
-      // Temporarily create a ReactMarkdown instance for printing. This could be more optimized.
-      const tempDiv = document.createElement('div');
-      const notesToPrint = content; // The actual markdown content
-      
-      // This is a basic way. A more sophisticated way might involve ReactDOMServer or similar for static HTML.
-      // For client-side, getting innerHTML of a rendered ReactMarkdown is an option.
-      // Let's print the rendered content from notesOutputRef if available and viewing, otherwise raw.
       let htmlToPrint = '';
        if (notesOutputRef.current && (isViewingNote || generatedNotesContent)) {
-         htmlToPrint = notesOutputRef.current.innerHTML;
+         // Create a temporary div, render ReactMarkdown to it, then get its innerHTML
+         // This ensures that Mermaid diagrams are also included as SVGs if rendered
+        const tempContainer = document.createElement('div');
+        // Temporarily assign the ref to this new container to capture its content
+        const originalRefCurrent = notesOutputRef.current;
+        (notesOutputRef as React.MutableRefObject<HTMLDivElement | null>).current = tempContainer;
+
+        // This is tricky because ReactMarkdown is declarative. A better way for PDF might be server-side generation.
+        // For client-side, we can try to get the innerHTML of the rendered component.
+        // However, mermaid diagrams are rendered async.
+        // A simpler approach is to render the markdown again in the new window, but ensure styles apply.
+
+        // For now, let's just use the raw markdown and style it for print.
+        // This will not render mermaid diagrams in the PDF unless mermaid is run in the new window too.
+        // A full solution for mermaid in PDF from client-side is complex.
+        
+        const renderedContentContainer = document.createElement('div');
+        renderedContentContainer.innerHTML = notesOutputRef.current.innerHTML; // Get current rendered HTML
+        
+        // Attempt to re-run mermaid in the print window (might not always work perfectly due to timing)
+        printWindow.document.write(`<div class="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none">${renderedContentContainer.innerHTML}</div>`);
+        printWindow.document.write(`<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>`);
+        printWindow.document.write(`<script>mermaid.initialize({startOnLoad: true, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default'}); mermaid.run();</script>`);
+
        } else {
-         // Fallback to a very basic conversion of markdown for printing
-         // This won't have the rich rendering like ReactMarkdown
-         htmlToPrint = `<pre>${notesToPrint.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+         htmlToPrint = `<pre>${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+         printWindow.document.write(htmlToPrint);
        }
 
-      printWindow.document.write(htmlToPrint);
       printWindow.document.write('</body></html>');
       printWindow.document.close();
       printWindow.focus();
       setTimeout(() => {
         printWindow.print();
-      }, 500);
+      }, 1000); // Increased timeout for mermaid to potentially render
       toast({ title: 'Print to PDF', description: 'Use browser\'s print dialog.' });
     } else {
       toast({ title: 'Print Failed', variant: 'destructive' });
     }
+  };
+  
+  // Define markdownComponents inside the component to access setDiagramCode
+  const markdownComponents = {
+      pre: ({ node, ...props }: any) => {
+          const childrenArray = React.Children.toArray(props.children);
+          const codeChild = childrenArray.find((child: any) => React.isValidElement(child) && child.props.className?.includes('language-mermaid')) as React.ReactElement | undefined;
+          if (React.isValidElement(codeChild) && codeChild.props.className?.includes('language-mermaid')) {
+          // For Mermaid, we render the button and the code block itself for inline view
+          return (
+            <div className="my-4"> {/* Container for button and code block */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDiagramCode(String(codeChild.props.children).replace(/\n$/, ''))}
+                aria-label="View diagram in pop-out window"
+                className="mb-2"
+              >
+                <Eye className="mr-2 h-4 w-4" /> View Diagram
+              </Button>
+              <pre {...props} className="language-mermaid bg-background text-foreground p-0">{props.children}</pre>
+            </div>
+          );
+          }
+          return <pre className="bg-muted/50 p-4 rounded-md overflow-auto" {...props} />;
+      },
+      code: ({ node, inline, className, children, ...props }: any) => {
+          const match = /language-(\w+)/.exec(className || '');
+          if (match && match[1] === 'mermaid' && !inline) {
+            // This code element is part of the <pre> handled above, which includes the button.
+            // The actual Mermaid rendering for inline is done via its class.
+            return <code className="language-mermaid" {...props}>{String(children).replace(/\n$/, '')}</code>;
+          }
+          return (
+          <code className={cn(className, !inline && "block whitespace-pre-wrap bg-muted/50 p-2 rounded", inline && "px-1 py-0.5 bg-muted rounded-sm font-mono text-sm")} {...props}>
+              {children}
+          </code>
+          );
+      },
+      img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-md my-4 shadow-md border border-border" alt={props.alt || ''} {...props} data-ai-hint="illustration drawing"/>,
+      table: ({node, ...props}: any) => <table className="w-full my-4 border-collapse border border-border shadow-sm" {...props} />,
+      thead: ({node, ...props}: any) => <thead className="bg-muted/50 border-b border-border" {...props} />,
+      th: ({node, ...props}: any) => <th className="border border-border px-4 py-2 text-left font-semibold text-card-foreground" {...props} />,
+      td: ({node, ...props}: any) => <td className="border border-border px-4 py-2 text-card-foreground" {...props} />,
+      details: ({node, ...props}: any) => <details className="my-4 p-3 border rounded-md bg-card shadow-sm open:ring-1 open:ring-primary" {...props} />,
+      summary: ({node, ...props}: any) => <summary className="font-semibold cursor-pointer hover:text-primary list-inside text-card-foreground" {...props} />,
+      blockquote: ({node, ...props}: any) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm text-muted-foreground" {...props} />,
+      h1: ({node, ...props}: any) => <h1 className="text-3xl lg:text-4xl font-extrabold my-5 text-primary border-b border-border pb-2" {...props} />,
+      h2: ({node, ...props}: any) => <h2 className="text-2xl lg:text-3xl font-bold my-4 text-foreground border-b border-border pb-1" {...props} />,
+      h3: ({node, ...props}: any) => <h3 className="text-xl lg:text-2xl font-semibold my-3 text-foreground" {...props} />,
+      h4: ({node, ...props}: any) => <h4 className="text-lg lg:text-xl font-semibold my-2 text-foreground" {...props} />,
+      ul: ({node, ...props}: any) => <ul className="list-disc pl-6 my-3 space-y-1 text-foreground" {...props} />,
+      ol: ({node, ...props}: any) => <ol className="list-decimal pl-6 my-3 space-y-1 text-foreground" {...props} />,
+      li: ({node, ...props}: any) => <li className="mb-1 leading-relaxed" {...props} />,
+      p: ({node, ...props}: any) => <p className="my-3 leading-relaxed text-foreground" {...props} />,
+      a: ({node, ...props}: any) => <a className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring" {...props} />,
+      hr: ({node, ...props}: any) => <hr className="my-6 border-border" {...props} />,
   };
 
   const currentDisplayContent = isViewingNote && selectedNote ? selectedNote.content : generatedNotesContent;
@@ -327,6 +420,24 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
         ></div>
     </div>
   );
+  
+  const renderDiagramModal = () => {
+    if (!diagramCode) return null;
+
+    return (
+      <Dialog open={!!diagramCode} onOpenChange={(open) => !open && setDiagramCode(null)}>
+        <DialogContent className="max-w-3xl min-h-[300px] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Diagram View</DialogTitle>
+          </DialogHeader>
+          <div className="p-4 flex-grow overflow-auto mermaid-modal-content">
+            <div className="mermaid">{diagramCode}</div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
 
   return (
     <div className="space-y-6">
@@ -346,7 +457,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             <CardContent className="space-y-4">
             <FileUpload onFileRead={handleFileRead} aria-label="Upload course material file"/>
             <div>
-                <Label htmlFor="courseMaterialTextNotes">Course Material (Paste Text)</Label>
+                <Label htmlFor="courseMaterialTextNotes" className="block text-sm font-medium mb-1">Course Material (Paste Text)</Label>
                 <Textarea
                     id="courseMaterialTextNotes"
                     placeholder="Paste course material here..."
@@ -359,7 +470,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             </div>
             </CardContent>
             <CardFooter>
-            <Button onClick={handleGenerateNotes} disabled={isGeneratingNotes || !courseMaterial.trim()}>
+            <Button onClick={handleGenerateNotes} disabled={isGeneratingNotes || !courseMaterial.trim()} aria-label="Generate notes from provided material">
                 {isGeneratingNotes ? <LoadingSpinner className="mr-2" /> : <Lightbulb className="mr-2 h-4 w-4" />}
                 Generate Notes ({generationProgress > 0 && generationProgress < 100 ? `${generationProgress}%` : 'Start'})
             </Button>
@@ -521,49 +632,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
                 </CardContent>
             </Card>
         )}
-
+      {renderDiagramModal()}
     </div>
   );
 }
-
-
-// Shared Markdown components for consistent rendering
-const markdownComponents = {
-    pre: ({ node, ...props }: any) => {
-        const childrenArray = React.Children.toArray(props.children);
-        const codeChild = childrenArray.find((child: any) => React.isValidElement(child) && child.type === 'code') as React.ReactElement | undefined;
-        if (React.isValidElement(codeChild) && codeChild.props.className?.includes('language-mermaid')) {
-        return <pre {...props} className="language-mermaid bg-background text-foreground p-0">{props.children}</pre>;
-        }
-        return <pre className="bg-muted/50 p-4 rounded-md overflow-auto" {...props} />;
-    },
-    code: ({ node, inline, className, children, ...props }: any) => {
-        const match = /language-(\w+)/.exec(className || '');
-        if (match && match[1] === 'mermaid' && !inline) {
-        return <code className="language-mermaid" {...props}>{String(children).replace(/\n$/, '')}</code>;
-        }
-        return (
-        <code className={cn(className, !inline && "block whitespace-pre-wrap bg-muted/50 p-2 rounded", inline && "px-1 py-0.5 bg-muted rounded-sm font-mono text-sm")} {...props}>
-            {children}
-        </code>
-        );
-    },
-    img: ({node, ...props}: any) => <img className="max-w-full h-auto rounded-md my-4 shadow-md border border-border" alt={props.alt || ''} {...props} />,
-    table: ({node, ...props}: any) => <table className="w-full my-4 border-collapse border border-border shadow-sm" {...props} />,
-    thead: ({node, ...props}: any) => <thead className="bg-muted/50 border-b border-border" {...props} />,
-    th: ({node, ...props}: any) => <th className="border border-border px-4 py-2 text-left font-semibold text-card-foreground" {...props} />,
-    td: ({node, ...props}: any) => <td className="border border-border px-4 py-2 text-card-foreground" {...props} />,
-    details: ({node, ...props}: any) => <details className="my-4 p-3 border rounded-md bg-card shadow-sm open:ring-1 open:ring-primary" {...props} />,
-    summary: ({node, ...props}: any) => <summary className="font-semibold cursor-pointer hover:text-primary list-inside text-card-foreground" {...props} />,
-    blockquote: ({node, ...props}: any) => <blockquote className="border-l-4 border-primary pl-4 italic my-4 bg-muted/20 p-3 rounded-r-md shadow-sm text-muted-foreground" {...props} />,
-    h1: ({node, ...props}: any) => <h1 className="text-3xl lg:text-4xl font-extrabold my-5 text-primary border-b border-border pb-2" {...props} />,
-    h2: ({node, ...props}: any) => <h2 className="text-2xl lg:text-3xl font-bold my-4 text-foreground border-b border-border pb-1" {...props} />,
-    h3: ({node, ...props}: any) => <h3 className="text-xl lg:text-2xl font-semibold my-3 text-foreground" {...props} />,
-    h4: ({node, ...props}: any) => <h4 className="text-lg lg:text-xl font-semibold my-2 text-foreground" {...props} />,
-    ul: ({node, ...props}: any) => <ul className="list-disc pl-6 my-3 space-y-1 text-foreground" {...props} />,
-    ol: ({node, ...props}: any) => <ol className="list-decimal pl-6 my-3 space-y-1 text-foreground" {...props} />,
-    li: ({node, ...props}: any) => <li className="mb-1 leading-relaxed" {...props} />,
-    p: ({node, ...props}: any) => <p className="my-3 leading-relaxed text-foreground" {...props} />,
-    a: ({node, ...props}: any) => <a className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring" {...props} />,
-    hr: ({node, ...props}: any) => <hr className="my-6 border-border" {...props} />,
-};
