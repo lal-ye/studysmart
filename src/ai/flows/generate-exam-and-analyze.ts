@@ -100,12 +100,13 @@ Course Material:
 const gradeExamPrompt = ai.definePrompt({
   name: 'gradeExamPrompt',
   input: {schema: z.object({
-    exam: z.array(ExamQuestionSchema),
-    userAnswers: z.array(z.string()),
+    examString: z.string().describe('The exam questions as a JSON string.'),
+    userAnswersString: z.string().describe('The user answers as a JSON string, in corresponding order to exam questions.'),
   })},
   output: {schema: z.object({ results: z.array(ExamResultSchema) }) }, // Expecting an object with a 'results' key
   prompt: `You are an expert in grading exams.
 Based on the provided exam questions (including their types, correct answers, and topics) and the user's answers, grade the exam.
+The exam questions and user answers are provided as JSON strings.
 For each question, determine if the user's answer is correct.
 Return a JSON object with a "results" key. The value of "results" should be an array of result objects. Each result object must include:
 - 'question': The original question text.
@@ -115,11 +116,11 @@ Return a JSON object with a "results" key. The value of "results" should be an a
 - 'isCorrect': A boolean indicating if the user's answer was correct.
 - 'topic': The topic of the question.
 
-Exam Questions:
-{{{jsonStringify exam}}}
+Exam Questions (JSON string):
+{{{examString}}}
 
-User Answers (in corresponding order to exam questions):
-{{{jsonStringify userAnswers}}}
+User Answers (JSON string, in corresponding order to exam questions):
+{{{userAnswersString}}}
 `,
 });
 
@@ -127,17 +128,17 @@ User Answers (in corresponding order to exam questions):
 const analyzeResultsPrompt = ai.definePrompt({
   name: 'analyzeResultsPrompt',
   input: {schema: z.object({
-    // exam: z.array(ExamQuestionSchema), // Not strictly needed if results have topic
-    results: z.array(ExamResultSchema), // Results now include topic
+    resultsString: z.string().describe('The exam results as a JSON string. Each result includes the question, user answer, correctness, and topic.'),
   })},
   output: {schema: z.object({ topicsToReview: z.array(z.string()) }) }, // Expecting an object
   prompt: `You are an expert in education and analyzing exam results.
 Based on the provided exam results (which include the question, user answer, correctness, and topic for each), identify the topics where the user made mistakes.
+The exam results are provided as a JSON string.
 Focus on topics associated with incorrectly answered questions.
 Return a JSON object with a "topicsToReview" key, containing an array of unique topic strings that the user needs to review.
 
-Exam Results:
-{{{jsonStringify results}}}
+Exam Results (JSON string):
+{{{resultsString}}}
 `,
 });
 
@@ -169,8 +170,8 @@ const generateExamAndAnalyzeFlow = ai.defineFlow(
         });
 
     const gradeExamInput = {
-      exam: examQuestions,
-      userAnswers: userAnswersToGrade,
+      examString: JSON.stringify(examQuestions),
+      userAnswersString: JSON.stringify(userAnswersToGrade),
     };
 
     const gradingResult = await gradeExamPrompt(gradeExamInput);
@@ -181,7 +182,7 @@ const generateExamAndAnalyzeFlow = ai.defineFlow(
 
 
     const analyzeResultsInput = {
-      results: examResults, // results already contain topic info
+      resultsString: JSON.stringify(examResults), 
     };
 
     const analysisResult = await analyzeResultsPrompt(analyzeResultsInput);
@@ -205,7 +206,3 @@ const generateExamAndAnalyzeFlow = ai.defineFlow(
   }
 );
 
-// Helper to stringify JSON for prompts, can be removed if not needed or placed in a util
-function jsonStringify(value: any): string {
-  return JSON.stringify(value, null, 2);
-}
