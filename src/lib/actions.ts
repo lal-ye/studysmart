@@ -4,6 +4,7 @@ import { generateDynamicNotes as generateDynamicNotesFlow, type GenerateDynamicN
 import { generateQuiz as generateQuizFlow, type GenerateQuizInput } from '@/ai/flows/generate-quiz';
 import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput, type GenerateExamAndAnalyzeOutput } from '@/ai/flows/generate-exam-and-analyze';
 import { generateExtraReadings as generateExtraReadingsFlow, type GenerateExtraReadingsInput, type GenerateExtraReadingsOutput } from '@/ai/flows/generate-extra-readings';
+import { extractTextFromPdf as extractTextFromPdfFlow, type ExtractTextFromPdfInput, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
 
 export async function generateNotesAction(
   input: GenerateDynamicNotesInput
@@ -52,5 +53,19 @@ export async function getExtraReadingsAction(
     {
     console.error('Error in getExtraReadingsAction:', error);
     throw new Error('Failed to fetch extra readings. Please try again.');
+  }
+}
+
+export async function extractTextFromPdfAction(
+  input: ExtractTextFromPdfInput
+): Promise<ExtractTextFromPdfOutput> {
+  try {
+    const result = await extractTextFromPdfFlow(input);
+    return result;
+  } catch (error) {
+    console.error('Error in extractTextFromPdfAction:', error);
+    // Provide a more specific error message if possible
+    const message = error instanceof Error ? error.message : 'An unexpected error occurred during PDF processing.';
+    throw new Error(`Failed to extract text from PDF: ${message}`);
   }
 }
