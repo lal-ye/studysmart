@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 
 type ExamState = 'idle' | 'generating_exam' | 'taking_exam' | 'grading_exam' | 'showing_results';
+type ToastArgs = Parameters<ReturnType<typeof useToast>['toast']>[0];
+
 
 export default function ExamsPage() {
   const [courseMaterial, setCourseMaterial] = useState('');
@@ -33,10 +35,23 @@ export default function ExamsPage() {
   const [isProcessingAction, startProcessingActionTransition] = useTransition();
   const [isFetchingReadings, startFetchingReadingsTransition] = useTransition();
   const { toast } = useToast();
+  const [activeToastId, setActiveToastId] = useState<string | null>(null);
+
+
+  const showToast = (args: ToastArgs) => {
+    // Clear previous toast if any to prevent overlap
+    if (activeToastId) {
+      // Potentially dismiss previous toast if your toast system supports it by ID
+      // For now, we'll just rely on new toast replacing or queuing
+    }
+    const { id } = toast(args);
+    setActiveToastId(id);
+  };
+
 
   const handleGenerateExam = () => {
     if (!courseMaterial.trim()) {
-      toast({ title: 'Input Required', description: 'Please provide course material to generate an exam.', variant: 'destructive' });
+      showToast({ title: 'Input Required', description: 'Please provide course material to generate an exam.', variant: 'destructive' });
       return;
     }
     setExamState('generating_exam');
@@ -52,13 +67,13 @@ export default function ExamsPage() {
         if (result.exam && result.exam.length > 0) {
           setCurrentExamQuestions(result.exam);
           setExamState('taking_exam');
-          toast({ title: 'Exam Ready!', description: 'You can now start the exam.' });
+          showToast({ title: 'Exam Ready!', description: 'You can now start the exam.' });
         } else {
-          toast({ title: 'Generation Issue', description: 'No questions were generated. Try different material.', variant: 'destructive' });
+          showToast({ title: 'Generation Issue', description: 'No questions were generated. Try different material.', variant: 'destructive' });
           setExamState('idle');
         }
       } catch (error) {
-        toast({ title: 'Error Generating Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
+        showToast({ title: 'Error Generating Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
         setExamState('idle');
       }
     });
@@ -81,9 +96,9 @@ export default function ExamsPage() {
         const result = await generateAndAnalyzeExamAction(input);
         setExamResultsData(result);
         setExamState('showing_results');
-        toast({ title: 'Exam Graded!', description: 'Your results are ready below.' });
+        showToast({ title: 'Exam Graded!', description: 'Your results are ready below.' });
       } catch (error) {
-        toast({ title: 'Error Grading Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
+        showToast({ title: 'Error Grading Exam', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
         setExamState('taking_exam'); // Revert to taking exam if grading fails
       }
     });
@@ -95,21 +110,21 @@ export default function ExamsPage() {
         const readingsResult = await getExtraReadingsAction({ topic });
         
         setExamResultsData(prevData => {
-          if (!prevData) { // Should not happen if button is visible, but good guard
-            toast({ title: "Error", description: "Exam data not available to add readings.", variant: "destructive" });
+          if (!prevData) { 
+            showToast({ title: "Error", description: "Exam data not available to add readings.", variant: "destructive" });
             return null;
           }
 
           const existingUrls = new Set((prevData.extraReadings || []).map(ar => ar.url));
-          const newArticlesToAdd = readingsResult.articles.filter(newArticle => !existingUrls.has(newArticle.url));
+          const newArticlesToAdd = readingsResult.articles.filter(newArticle => !existingUrls.has(newArticle.url) && newArticle.title !== "No Relevant Articles Found");
 
-          if (readingsResult.articles.length === 0) {
-             toast({ title: `No Readings Found`, description: `Could not find any articles for "${topic}".` });
-             return prevData; // No change to data if API returned nothing
+          if (readingsResult.articles.length === 0 || (readingsResult.articles.length === 1 && readingsResult.articles[0].title === "No Relevant Articles Found" && newArticlesToAdd.length === 0) ) {
+             showToast({ title: `No New Readings Found`, description: `Could not find any new articles for "${topic}".` });
+             return prevData; 
           }
           
-          if (newArticlesToAdd.length === 0) { // All fetched were duplicates or no articles found initially
-            toast({ title: `Readings for ${topic} already listed.`, description: "No new unique articles found." });
+          if (newArticlesToAdd.length === 0 && readingsResult.articles.length > 0 && readingsResult.articles[0].title !== "No Relevant Articles Found") { 
+            showToast({ title: `Readings for ${topic} already listed.`, description: "No new unique articles found." });
             return prevData; 
           }
 
@@ -120,18 +135,20 @@ export default function ExamsPage() {
                    : `${topic}: ${article.title}`,
           }));
           
-          const updatedReadings = [...(prevData.extraReadings || []), ...processedNewArticles];
+          const updatedReadings = [...(prevData.extraReadings || []).filter(ar => ar.title !== "No Relevant Articles Found"), ...processedNewArticles];
           
-          toast({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
+          if (processedNewArticles.length > 0) {
+            showToast({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
+          }
           return { ...prevData, extraReadings: updatedReadings };
         });
       } catch (error) {
-        toast({ title: `Error Fetching Readings for ${topic}`, description: (error as Error).message, variant: 'destructive' });
+        showToast({ title: `Error Fetching Readings for ${topic}`, description: (error as Error).message, variant: 'destructive' });
       }
     });
   };
   
-  const handleFileRead = (content: string) => {
+  const handleFileRead = (content: string, fileName?: string) => {
     setCourseMaterial(content);
   };
 
@@ -302,27 +319,39 @@ export default function ExamsPage() {
           </CardContent>
         </Card>
 
-        {examResultsData.extraReadings && examResultsData.extraReadings.length > 0 && (
+        {examResultsData.extraReadings && 
+          examResultsData.extraReadings.length > 0 && 
+          examResultsData.extraReadings.filter(article => article.title !== "No Relevant Articles Found").length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Extra Readings</CardTitle>
+              <CardDescription>
+                Articles related to topics you need to review. These were fetched based on the topics identified in your study plan.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2">
-                {examResultsData.extraReadings.map((article: Article) => (
-                  <li key={article.url} className="text-sm border p-3 rounded-md hover:bg-muted/50">
-                    <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center">
-                      {article.title}
-                      <ExternalLink className="ml-2 h-3 w-3" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
+              {examResultsData.extraReadings.filter(article => article.title !== "No Relevant Articles Found").length > 0 ? (
+                  <ul className="space-y-2">
+                    {examResultsData.extraReadings
+                      .filter(article => article.title !== "No Relevant Articles Found")
+                      .map((article: Article, index: number) => (
+                      <li key={article.url + index} className="text-sm border p-3 rounded-md hover:bg-muted/50">
+                        <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center">
+                          {article.title}
+                          <ExternalLink className="ml-2 h-3 w-3" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                   <p className="text-muted-foreground">No extra readings available for the topics reviewed, or none were found.</p>
+                )
+              }
             </CardContent>
           </Card>
         )}
         <CardFooter>
-             <Button onClick={() => { setExamState('idle'); setCourseMaterial(''); }} variant="outline">
+             <Button onClick={() => { setExamState('idle'); setCourseMaterial(''); setExamResultsData(null); }} variant="outline">
                 Start New Exam
             </Button>
         </CardFooter>
