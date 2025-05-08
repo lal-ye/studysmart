@@ -93,17 +93,38 @@ export default function ExamsPage() {
     startFetchingReadingsTransition(async () => {
       try {
         const readingsResult = await getExtraReadingsAction({ topic });
+        
         setExamResultsData(prevData => {
-          if (!prevData) return null;
-          const updatedReadings = [...(prevData.extraReadings || [])];
-          readingsResult.articles.forEach(newArticle => {
-            if (!updatedReadings.some(exArticle => exArticle.url === newArticle.url && exArticle.title.includes(topic))) {
-              updatedReadings.push({ ...newArticle, title: `${topic}: ${newArticle.title}`});
-            }
-          });
+          if (!prevData) { // Should not happen if button is visible, but good guard
+            toast({ title: "Error", description: "Exam data not available to add readings.", variant: "destructive" });
+            return null;
+          }
+
+          const existingUrls = new Set((prevData.extraReadings || []).map(ar => ar.url));
+          const newArticlesToAdd = readingsResult.articles.filter(newArticle => !existingUrls.has(newArticle.url));
+
+          if (readingsResult.articles.length === 0) {
+             toast({ title: `No Readings Found`, description: `Could not find any articles for "${topic}".` });
+             return prevData; // No change to data if API returned nothing
+          }
+          
+          if (newArticlesToAdd.length === 0) { // All fetched were duplicates or no articles found initially
+            toast({ title: `Readings for ${topic} already listed.`, description: "No new unique articles found." });
+            return prevData; 
+          }
+
+          const processedNewArticles = newArticlesToAdd.map(article => ({
+            ...article,
+            title: article.title.toLowerCase().startsWith(topic.toLowerCase() + ":") || article.title.toLowerCase().startsWith(topic.toLowerCase()+" -") 
+                   ? article.title 
+                   : `${topic}: ${article.title}`,
+          }));
+          
+          const updatedReadings = [...(prevData.extraReadings || []), ...processedNewArticles];
+          
+          toast({ title: 'Extra Readings Fetched!', description: `Found ${processedNewArticles.length} new reading(s) for ${topic}.` });
           return { ...prevData, extraReadings: updatedReadings };
         });
-        toast({ title: 'Extra Readings Fetched!', description: `Found readings for ${topic}.` });
       } catch (error) {
         toast({ title: `Error Fetching Readings for ${topic}`, description: (error as Error).message, variant: 'destructive' });
       }
@@ -288,8 +309,8 @@ export default function ExamsPage() {
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {examResultsData.extraReadings.map((article: Article, index: number) => (
-                  <li key={index} className="text-sm border p-3 rounded-md hover:bg-muted/50">
+                {examResultsData.extraReadings.map((article: Article) => (
+                  <li key={article.url} className="text-sm border p-3 rounded-md hover:bg-muted/50">
                     <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center">
                       {article.title}
                       <ExternalLink className="ml-2 h-3 w-3" />
@@ -351,3 +372,4 @@ export default function ExamsPage() {
     </div>
   );
 }
+
