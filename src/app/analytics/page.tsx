@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -162,6 +163,12 @@ export default function AnalyticsPage() {
 
   const analyticsData = useMemo(() => {
     return computeAnalyticsSummary(allAttempts, selectedSubjectId);
+  }, [allAttempts, selectedSubjectId]);
+
+  const relevantAttempts = useMemo(() => {
+    return selectedSubjectId
+      ? allAttempts.filter(attempt => attempt.subjectId === selectedSubjectId)
+      : allAttempts;
   }, [allAttempts, selectedSubjectId]);
 
 
@@ -346,7 +353,7 @@ export default function AnalyticsPage() {
         </CardContent>
       </Card>
 
-      {(allAttempts.filter(a => selectedSubjectId ? a.subjectId === selectedSubjectId : true)).length > 0 && (
+      {(relevantAttempts).length > 0 && (
             <Card className="shadow-neo-lg">
                 <CardHeader>
                     <CardTitle className="font-bold">Previous Attempts for {selectedSubjectName}</CardTitle>
@@ -354,7 +361,7 @@ export default function AnalyticsPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                     <Accordion type="single" collapsible className="w-full border-2 border-border shadow-neo-md">
-                        {(allAttempts.filter(a => selectedSubjectId ? a.subjectId === selectedSubjectId : true)).map((attempt) => ( 
+                        {relevantAttempts.map((attempt) => ( 
                             <AccordionItem value={attempt.id} key={attempt.id} className="border-b-2 border-border last:border-b-0">
                                 <AccordionTrigger className="text-left hover:underline px-4 py-3">
                                     <div className="flex items-center justify-between w-full">
