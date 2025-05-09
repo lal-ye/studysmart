@@ -11,74 +11,61 @@ export default {
   theme: {
   	extend: {
       fontFamily: {
-        mono: ['var(--font-jetbrains-mono)', ...defaultTheme.fontFamily.mono], // Changed to mono and JetBrains Mono
+        mono: ['var(--font-jetbrains-mono)', ...defaultTheme.fontFamily.mono], 
       },
   		colors: {
-  			background: 'hsl(var(--background))',
-  			foreground: 'hsl(var(--foreground))',
-  			card: {
-  				DEFAULT: 'hsl(var(--card))',
-  				foreground: 'hsl(var(--card-foreground))'
-  			},
-  			popover: {
-  				DEFAULT: 'hsl(var(--popover))',
-  				foreground: 'hsl(var(--popover-foreground))'
-  			},
-  			primary: {
-  				DEFAULT: 'hsl(var(--primary))',
-  				foreground: 'hsl(var(--primary-foreground))'
-  			},
-  			secondary: {
-  				DEFAULT: 'hsl(var(--secondary))',
-  				foreground: 'hsl(var(--secondary-foreground))'
-  			},
-  			muted: {
-  				DEFAULT: 'hsl(var(--muted))',
-  				foreground: 'hsl(var(--muted-foreground))'
-  			},
-  			accent: {
-  				DEFAULT: 'hsl(var(--accent))',
-  				foreground: 'hsl(var(--accent-foreground))'
-  			},
-  			destructive: {
-  				DEFAULT: 'hsl(var(--destructive))',
-  				foreground: 'hsl(var(--destructive-foreground))'
-  			},
-  			border: 'hsl(var(--border))',
-  			input: 'hsl(var(--input))',
-  			ring: 'hsl(var(--ring))',
-  			chart: {
-  				'1': 'hsl(var(--chart-1))',
-  				'2': 'hsl(var(--chart-2))',
-  				'3': 'hsl(var(--chart-3))',
-  				'4': 'hsl(var(--chart-4))',
-  				'5': 'hsl(var(--chart-5))'
-  			},
-  			sidebar: {
-  				DEFAULT: 'hsl(var(--sidebar-background))',
-  				foreground: 'hsl(var(--sidebar-foreground))',
-  				primary: 'hsl(var(--sidebar-primary))',
-  				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-  				accent: 'hsl(var(--sidebar-accent))',
-  				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-  				border: 'hsl(var(--sidebar-border))',
-  				ring: 'hsl(var(--sidebar-ring))'
-  			}
+        // Custom Neobrutalist Palette
+        background: 'hsl(var(--background))', // Pale Whale
+        foreground: 'hsl(var(--foreground))', // Darker for contrast on Pale Whale
+        card: 'hsl(var(--card))', // Moonraker
+        'card-foreground': 'hsl(var(--card-foreground))', // Darker for contrast on Moonraker
+        popover: 'hsl(var(--popover))', // Moonraker
+        'popover-foreground': 'hsl(var(--popover-foreground))', // Darker for contrast on Moonraker
+        primary: 'hsl(var(--primary))', // Cabbage
+        'primary-foreground': 'hsl(var(--primary-foreground))', // Darker for contrast on Cabbage
+        secondary: 'hsl(var(--secondary))', // Slightly desaturated Pale Whale
+        'secondary-foreground': 'hsl(var(--secondary-foreground))',
+        muted: 'hsl(var(--muted))', // Lighter Pale Whale
+        'muted-foreground': 'hsl(var(--muted-foreground))',
+        accent: 'hsl(var(--accent))', // Cabbage (can be same as primary)
+        'accent-foreground': 'hsl(var(--accent-foreground))',
+        destructive: 'hsl(var(--destructive))', // Standard Red
+        'destructive-foreground': 'hsl(var(--destructive-foreground))', // White
+        border: 'hsl(var(--border))', // Blackish for high contrast
+        input: 'hsl(var(--input))', // Input border, same as main border
+        ring: 'hsl(var(--ring))', // Slightly darker Cabbage for focus rings
+        chart: {
+          '1': 'hsl(var(--chart-1))',
+          '2': 'hsl(var(--chart-2))',
+          '3': 'hsl(var(--chart-3))',
+          '4': 'hsl(var(--chart-4))',
+          '5': 'hsl(var(--chart-5))'
+        },
+        sidebar: {
+          DEFAULT: 'hsl(var(--sidebar-background))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          primary: 'hsl(var(--sidebar-primary))',
+          'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
+          accent: 'hsl(var(--sidebar-accent))',
+          'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+          border: 'hsl(var(--sidebar-border))',
+          ring: 'hsl(var(--sidebar-ring))'
+        }
   		},
-  		borderRadius: { // Neobrutalism often uses sharper corners, or slightly rounded
-  			lg: '0.375rem', // Slightly less rounded than default 0.5rem
+  		borderRadius: { 
+  			lg: '0.375rem', 
   			md: '0.25rem',
   			sm: '0.125rem',
-        none: '0rem',
+        none: '0rem', // Neobrutalism often uses sharp corners
   		},
       borderWidth: {
         DEFAULT: '1px',
         '0': '0',
         '2': '2px',
-        '3': '3px', // For Neobrutalist borders
+        '3': '3px', 
         '4': '4px',
       },
-      boxShadow: { // Custom Neobrutalist shadows
+      boxShadow: { 
         'neo-sm': '2px 2px 0px hsl(var(--border))',
         'neo-md': '4px 4px 0px hsl(var(--border))',
         'neo-lg': '6px 6px 0px hsl(var(--border))',
@@ -122,19 +109,36 @@ export default {
             '--tw-prose-quote-borders': 'hsl(var(--primary))',
             '--tw-prose-captions': 'hsl(var(--muted-foreground))',
             '--tw-prose-code': 'hsl(var(--foreground))',
-            '--tw-prose-pre-code': 'hsl(var(--primary-foreground))',
-            '--tw-prose-pre-bg': 'hsl(var(--primary))', // Or a dark neutral
+            '--tw-prose-pre-code': 'hsl(var(--card-foreground))', 
+            '--tw-prose-pre-bg': 'hsl(var(--card))', 
             '--tw-prose-th-borders': 'hsl(var(--border))',
             '--tw-prose-td-borders': 'hsl(var(--border))',
-            // Dark mode prose can be adjusted via the .dark class in globals.css if needed
-            '--tw-prose-invert-body': 'hsl(var(--foreground))', // In dark mode, foreground is light
+            // Dark mode prose styles
+            '--tw-prose-invert-body': 'hsl(var(--foreground))', 
             '--tw-prose-invert-headings': 'hsl(var(--foreground))',
             '--tw-prose-invert-links': 'hsl(var(--primary))',
-             '--tw-prose-invert-pre-code': 'hsl(var(--card-foreground))', 
+            '--tw-prose-invert-bold': 'hsl(var(--foreground))',
+            '--tw-prose-invert-counters': 'hsl(var(--muted-foreground))',
+            '--tw-prose-invert-bullets': 'hsl(var(--muted-foreground))',
+            '--tw-prose-invert-hr': 'hsl(var(--border))',
+            '--tw-prose-invert-quotes': 'hsl(var(--foreground))',
+            '--tw-prose-invert-quote-borders': 'hsl(var(--primary))',
+            '--tw-prose-invert-captions': 'hsl(var(--muted-foreground))',
+            '--tw-prose-invert-code': 'hsl(var(--foreground))',
+            '--tw-prose-invert-pre-code': 'hsl(var(--card-foreground))',
             '--tw-prose-invert-pre-bg': 'hsl(var(--card))',
+            '--tw-prose-invert-th-borders': 'hsl(var(--border))',
+            '--tw-prose-invert-td-borders': 'hsl(var(--border))',
           },
         },
       }),
+      gridTemplateColumns: {
+        'min-1': 'repeat(auto-fit, minmax(min(100%/1, max(100px, 100%/1)), 1fr))',
+        'min-2': 'repeat(auto-fit, minmax(min(100%/2, max(120px, 100%/2)), 1fr))',
+        'min-3': 'repeat(auto-fit, minmax(min(100%/3, max(120px, 100%/3)), 1fr))',
+        'min-4': 'repeat(auto-fit, minmax(min(100%/4, max(120px, 100%/4)), 1fr))',
+        'min-5': 'repeat(auto-fit, minmax(min(100%/5, max(120px, 100%/5)), 1fr))',
+      }
   	}
   },
   plugins: [

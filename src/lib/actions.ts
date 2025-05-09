@@ -1,4 +1,3 @@
-
 'use server';
 
 import { generateDynamicNotes as generateDynamicNotesFlow, type GenerateDynamicNotesInput } from '@/ai/flows/generate-dynamic-notes';
@@ -168,6 +167,22 @@ export interface StoredQuiz {
   updatedAt: string; // ISO string
 }
 
+// Unified attempt structure for both exams and quizzes
+export interface StoredAttempt {
+  id: string; // Unique ID for this attempt
+  subjectId: string;
+  subjectName: string; // Denormalized for easier display
+  name: string; // User-defined name for this exam/quiz attempt
+  type: 'Exam' | 'Quiz'; // Differentiates between exam and quiz
+  date: string; // 'YYYY-MM-DD'
+  examQuestions: ExamQuestion[]; // Specific to exams, might be empty for quizzes
+  examResults: ExamResult[]; // Specific to exams, might be empty for quizzes
+  overallScore: number;
+  topicsToReview: string[]; // Specific to exams, might be empty for quizzes
+  extraReadings?: Article[]; // Optional, can be populated for exams or quizzes
+}
+
+
 // --- Analytics Data Structures ---
 export interface DatedScore {
   date: string; // 'YYYY-MM-DD'
@@ -184,39 +199,33 @@ export interface TopicPerformance {
 }
 
 export interface QuizScoreDistributionItem {
-    name: string; 
-    score: number; 
+    name: string; // e.g., "0-59%", "60-69%", "70-79%", "80-89%", "90-100%"
+    count: number; // Number of quizzes in this score range
 }
 
 export interface AnalyticsSummary {
   overallAverageScore: number;
   quizzesTaken: number;
   examsTaken: number;
+  lastActivityDate: string | null;
   overallScoreProgress: DatedScore[]; 
   topicPerformance: TopicPerformance[]; 
   areasForImprovement: TopicPerformance[]; 
   quizScoreDistribution: QuizScoreDistributionItem[]; 
 }
 
-export interface StoredExamAttempt {
-  id: string; // Unique ID for this attempt
-  subjectId: string;
-  subjectName: string; // Denormalized for easier display
-  name: string; // User-defined name for this exam attempt
-  date: string; // 'YYYY-MM-DD'
-  examQuestions: ExamQuestion[];
-  examResults: ExamResult[];
-  overallScore: number;
-  topicsToReview: string[];
-}
 
 // --- Analytics Action ---
-export async function getAnalyticsDataAction(): Promise<AnalyticsSummary> {
-  console.warn("getAnalyticsDataAction called. In this version, actual analytics data is loaded client-side from localStorage.");
+// This action is a placeholder as analytics data is primarily computed client-side.
+// However, it can be expanded if server-side processing becomes necessary.
+export async function getAnalyticsDataAction(subjectId?: string): Promise<AnalyticsSummary> {
+  console.warn(`getAnalyticsDataAction called for subjectId: ${subjectId}. In this version, actual analytics data is loaded client-side from localStorage.`);
+  // In a real backend scenario, you would fetch and process data based on subjectId.
   return {
     overallAverageScore: 0,
     quizzesTaken: 0,
     examsTaken: 0,
+    lastActivityDate: null,
     overallScoreProgress: [],
     topicPerformance: [],
     areasForImprovement: [],
