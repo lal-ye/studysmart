@@ -67,6 +67,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
   const [generationProgress, setGenerationProgress] = useState(0);
   const notesOutputRef = useRef<HTMLDivElement>(null);
   const [diagramCode, setDiagramCode] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
 
   const getNotesStorageKey = () => NOTES_STORAGE_KEY_BASE; 
@@ -145,7 +146,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       try {
         if (typeof window !== 'undefined' && (window as any).mermaid) {
           setTimeout(() => {
-            const modalDiagramElements = document.querySelectorAll('.mermaid-modal-content .mermaid:not([data-processed="true"])'));
+            const modalDiagramElements = document.querySelectorAll('.mermaid-modal-content .mermaid:not([data-processed="true"])');
             if (modalDiagramElements.length > 0) {
                (window as any).mermaid.run({
                  nodes: modalDiagramElements,
@@ -324,84 +325,122 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     });
   };
   
-  const handleExportPdf = (contentToExport: string, sourceNameToPrint?: string) => {
-    if (!contentToExport && !notesOutputRef.current) {
-        toast({ title: 'No Content', description: 'Nothing to export to PDF.', variant: 'destructive' });
-        return;
+ const handleExportPdf = async (contentToExport: string, sourceNameToPrint?: string) => {
+  if (!contentToExport) {
+    toast({ 
+      title: 'No Content', 
+      description: 'Nothing to export to PDF.', 
+      variant: 'destructive' 
+    });
+    return;
+  }
+
+  try {
+    setIsExporting(true);
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.className = 'markdown-export-container prose dark:prose-invert max-w-none'; // Apply prose for styling
+    tempDiv.style.width = '210mm'; 
+    tempDiv.style.padding = '15mm';
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px'; // Off-screen
+    tempDiv.style.backgroundColor = 'white'; // Ensure background for canvas capture
+    tempDiv.style.color = 'black'; // Ensure text color for canvas capture
+    
+    if (sourceNameToPrint) {
+      const titleElement = document.createElement('h1');
+      titleElement.textContent = sourceNameToPrint;
+      tempDiv.appendChild(titleElement);
     }
+    
+    const ReactDOMServer = await import('react-dom/server');
+    
+    // Ensure ReactMarkdown component is correctly imported and used if it's a default export
+    const ReactMarkdownComponent = (await import('react-markdown')).default;
 
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-        printWindow.document.open();
-        
-        const tailwindStyles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-            .map(el => el.outerHTML)
-            .join('');
-        
-        const bodyClasses = document.body.className; 
+    const markdownHtml = ReactDOMServer.renderToString(
+      React.createElement(ReactMarkdownComponent, { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeRaw], components: markdownComponents }, contentToExport)
+    );
+    
+    // Create a container for the HTML to be appended to, then append the HTML string.
+    const contentContainer = document.createElement('div');
+    contentContainer.innerHTML = markdownHtml;
+    tempDiv.appendChild(contentContainer);
 
-        printWindow.document.write(`
-            <html>
-            <head>
-                <title>Print Notes: ${sourceNameToPrint || 'StudySmarts Notes'}</title>
-                ${tailwindStyles}
-                <style>
-                    body { margin: 20px; font-family: var(--font-jetbrains-mono), monospace; }
-                    .prose { max-width: 100% !important; } 
-                    .mermaid { page-break-inside: avoid; } 
-                    @media print {
-                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-                        .no-print { display: none !important; }
-                    }
-                </style>
-            </head>
-            <body class="${bodyClasses}">
-                <div id="print-content-wrapper">
-                    <!-- Content will be injected here -->
-                </div>
-                <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-                <script>
-                    function applyParentStylesAndContent() {
-                        const printContentWrapper = printWindow.document.getElementById('print-content-wrapper');
-                        if (!printContentWrapper) return;
-                        
-                        const notesHTML = ${notesOutputRef.current ? `\`${notesOutputRef.current.innerHTML.replace(/`/g, '\\`')}\`` : `\`<pre>${contentToExport.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/`/g, '\\`')}</pre>\``};
-                        printContentWrapper.innerHTML = '<div class="prose prose-sm sm:prose-base lg:prose-lg xl:prose-xl 2xl:prose-2xl dark:prose-invert max-w-none">' + notesHTML + '</div>';
+    document.body.appendChild(tempDiv);
+    
+    const { default: html2canvas } = await import('html2canvas');
+    const { jsPDF } = await import('jspdf');
+    
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+    
+    const contentHeight = tempDiv.offsetHeight * (25.4 / 96); // Convert px to mm (assuming 96 DPI)
+    const a4Height = 297; 
+    const a4Width = 210;  
+    
+    const pageMargin = 15; // mm
+    const pageContentHeight = a4Height - (2 * pageMargin);
+    const pageContentWidth = a4Width - (2 * pageMargin);
 
-                        mermaid.initialize({ 
-                            startOnLoad: false,
-                            theme: printWindow.document.body.classList.contains('dark') ? 'dark' : 'default' 
-                        });
-                        
-                        setTimeout(() => { 
-                            try {
-                                const mermaidElements = printWindow.document.querySelectorAll('.language-mermaid, .mermaid');
-                                if (mermaidElements.length > 0) {
-                                    mermaid.run({ nodes: mermaidElements });
-                                }
-                            } catch (err) {
-                                console.error("Error rendering Mermaid in print window:", err);
-                            } finally {
-                                printWindow.focus(); 
-                                printWindow.print();
-                            }
-                        }, 1500); 
-                    }
-                    
-                    if (printWindow.document.readyState === 'complete') {
-                        applyParentStylesAndContent();
-                    } else {
-                        printWindow.onload = applyParentStylesAndContent;
-                    }
-                </script>
-            </body>
-            </html>
-        `);
-        printWindow.document.close();
-        toast({ title: 'Preparing PDF...', description: 'Your browser\'s print dialog will appear. Select "Save as PDF".' });
-    } else {
-        toast({ title: 'Print Failed', description: 'Could not open print window. Check pop-up blocker.', variant: 'destructive' });
+    const pageCount = Math.ceil(contentHeight / pageContentHeight); 
+    
+    for (let i = 0; i < pageCount; i++) {
+      // Ensure mermaid diagrams render before capturing canvas for each page
+      if (mermaidScriptLoaded && typeof window !== 'undefined' && (window as any).mermaid) {
+          const diagramsOnPage = tempDiv.querySelectorAll('.mermaid');
+          if(diagramsOnPage.length > 0) {
+            await (window as any).mermaid.run({ nodes: diagramsOnPage });
+          }
+      }
+
+      const canvas = await html2canvas(tempDiv, {
+        scrollY: - (i * pageContentHeight * (96 / 25.4)), // scrollY needs to be in px
+        height: pageContentHeight * (96 / 25.4), // height in px
+        width: tempDiv.scrollWidth, // capture full width of the tempDiv
+        scale: 2, 
+        useCORS: true,
+        logging: false,
+        windowHeight: pageContentHeight * (96 / 25.4), // ensure window height for canvas matches content
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      if (i > 0) {
+        pdf.addPage();
+      }
+      
+      // Scale image to fit pageContentWidth, maintaining aspect ratio
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfImgHeight = (imgProps.height * pageContentWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'PNG', pageMargin, pageMargin, pageContentWidth, pdfImgHeight);
+      
+      pdf.setFontSize(10);
+      pdf.text(`Page ${i + 1} of ${pageCount}`, a4Width / 2, a4Height - (pageMargin / 2), { align: 'center' });
     }
+    
+    document.body.removeChild(tempDiv);
+    
+    pdf.save(`${sourceNameToPrint || 'StudySmarts-Notes'}.pdf`);
+    
+    toast({ 
+      title: 'PDF Exported', 
+      description: 'Notes saved as PDF file.' 
+    });
+  } catch (error) {
+    console.error('PDF export failed:', error);
+    toast({ 
+      title: 'Export Failed', 
+      description: `Failed to generate PDF. ${(error as Error).message || 'Please try again.'}`, 
+      variant: 'destructive' 
+    });
+  } finally {
+    setIsExporting(false);
+  }
 };
   
   
@@ -691,8 +730,21 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             <Button onClick={() => handleCopyToClipboard(selectedNote.content)} variant="outline" aria-label="Copy note content to clipboard">
               <Copy className="mr-2 h-4 w-4" /> Copy
             </Button>
-            <Button onClick={() => handleExportPdf(selectedNote.content, selectedNote.sourceName)} variant="outline" aria-label="Export note as PDF">
-              <Printer className="mr-2 h-4 w-4" /> Export PDF
+             <Button 
+              onClick={() => handleExportPdf(selectedNote.content, selectedNote.sourceName)} 
+              variant="outline" 
+              aria-label="Export note as PDF"
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <>
+                  <LoadingSpinner className="mr-2 h-4 w-4" /> Exporting...
+                </>
+              ) : (
+                <>
+                  <Printer className="mr-2 h-4 w-4" /> Export PDF
+                </>
+              )}
             </Button>
           </CardFooter>
         </Card>
