@@ -1,0 +1,2 @@
+# studysmart
+vibecoded study app
