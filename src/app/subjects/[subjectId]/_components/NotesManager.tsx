@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useTransition, useEffect, useRef, useCallback } from 'react';
@@ -68,6 +67,8 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
   const notesOutputRef = useRef<HTMLDivElement>(null);
   const [diagramCode, setDiagramCode] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [lastSuccessfulPage, setLastSuccessfulPage] = useState(-1);
 
 
   const getNotesStorageKey = () => NOTES_STORAGE_KEY_BASE; 
@@ -325,124 +326,164 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     });
   };
   
- const handleExportPdf = async (contentToExport: string, sourceNameToPrint?: string) => {
-  if (!contentToExport) {
-    toast({ 
-      title: 'No Content', 
-      description: 'Nothing to export to PDF.', 
-      variant: 'destructive' 
-    });
-    return;
-  }
-
-  try {
-    setIsExporting(true);
-    
-    const tempDiv = document.createElement('div');
-    tempDiv.className = 'markdown-export-container prose dark:prose-invert max-w-none'; // Apply prose for styling
-    tempDiv.style.width = '210mm'; 
-    tempDiv.style.padding = '15mm';
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.left = '-9999px'; // Off-screen
-    tempDiv.style.backgroundColor = 'white'; // Ensure background for canvas capture
-    tempDiv.style.color = 'black'; // Ensure text color for canvas capture
-    
-    if (sourceNameToPrint) {
-      const titleElement = document.createElement('h1');
-      titleElement.textContent = sourceNameToPrint;
-      tempDiv.appendChild(titleElement);
+  const handleExportPdf = async (contentToExport: string, sourceNameToPrint?: string) => {
+    if (!contentToExport) {
+      toast({ title: 'No Content', description: 'Nothing to export to PDF.', variant: 'destructive' });
+      return;
     }
-    
-    const ReactDOMServer = await import('react-dom/server');
-    
-    // Ensure ReactMarkdown component is correctly imported and used if it's a default export
-    const ReactMarkdownComponent = (await import('react-markdown')).default;
-
-    const markdownHtml = ReactDOMServer.renderToString(
-      React.createElement(ReactMarkdownComponent, { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeRaw], components: markdownComponents }, contentToExport)
-    );
-    
-    // Create a container for the HTML to be appended to, then append the HTML string.
-    const contentContainer = document.createElement('div');
-    contentContainer.innerHTML = markdownHtml;
-    tempDiv.appendChild(contentContainer);
-
-    document.body.appendChild(tempDiv);
-    
-    const { default: html2canvas } = await import('html2canvas');
-    const { jsPDF } = await import('jspdf');
-    
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-    
-    const contentHeight = tempDiv.offsetHeight * (25.4 / 96); // Convert px to mm (assuming 96 DPI)
-    const a4Height = 297; 
-    const a4Width = 210;  
-    
-    const pageMargin = 15; // mm
-    const pageContentHeight = a4Height - (2 * pageMargin);
-    const pageContentWidth = a4Width - (2 * pageMargin);
-
-    const pageCount = Math.ceil(contentHeight / pageContentHeight); 
-    
-    for (let i = 0; i < pageCount; i++) {
-      // Ensure mermaid diagrams render before capturing canvas for each page
-      if (mermaidScriptLoaded && typeof window !== 'undefined' && (window as any).mermaid) {
-          const diagramsOnPage = tempDiv.querySelectorAll('.mermaid');
-          if(diagramsOnPage.length > 0) {
-            await (window as any).mermaid.run({ nodes: diagramsOnPage });
-          }
-      }
-
-      const canvas = await html2canvas(tempDiv, {
-        scrollY: - (i * pageContentHeight * (96 / 25.4)), // scrollY needs to be in px
-        height: pageContentHeight * (96 / 25.4), // height in px
-        width: tempDiv.scrollWidth, // capture full width of the tempDiv
-        scale: 2, 
-        useCORS: true,
-        logging: false,
-        windowHeight: pageContentHeight * (96 / 25.4), // ensure window height for canvas matches content
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      
-      if (i > 0) {
-        pdf.addPage();
-      }
-      
-      // Scale image to fit pageContentWidth, maintaining aspect ratio
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfImgHeight = (imgProps.height * pageContentWidth) / imgProps.width;
-
-      pdf.addImage(imgData, 'PNG', pageMargin, pageMargin, pageContentWidth, pdfImgHeight);
-      
-      pdf.setFontSize(10);
-      pdf.text(`Page ${i + 1} of ${pageCount}`, a4Width / 2, a4Height - (pageMargin / 2), { align: 'center' });
-    }
-    
-    document.body.removeChild(tempDiv);
-    
-    pdf.save(`${sourceNameToPrint || 'StudySmarts-Notes'}.pdf`);
-    
-    toast({ 
-      title: 'PDF Exported', 
-      description: 'Notes saved as PDF file.' 
-    });
-  } catch (error) {
-    console.error('PDF export failed:', error);
-    toast({ 
-      title: 'Export Failed', 
-      description: `Failed to generate PDF. ${(error as Error).message || 'Please try again.'}`, 
-      variant: 'destructive' 
-    });
-  } finally {
-    setIsExporting(false);
-  }
-};
   
+    try {
+      setIsExporting(true);
+      setExportProgress(0);
+      setLastSuccessfulPage(-1);
+  
+      const { default: html2canvas } = await import('html2canvas');
+      const { jsPDF } = await import('jspdf');
+      const ReactDOMServer = await import('react-dom/server');
+      const ReactMarkdownComponent = (await import('react-markdown')).default;
+  
+      const tempDiv = document.createElement('div');
+      tempDiv.className = 'markdown-export-container prose max-w-none'; // Use light theme for PDF
+      tempDiv.style.width = '210mm';
+      tempDiv.style.padding = '15mm';
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.backgroundColor = 'white';
+      tempDiv.style.color = 'black';
+  
+      if (sourceNameToPrint) {
+        const titleElement = document.createElement('h1');
+        titleElement.textContent = sourceNameToPrint;
+        tempDiv.appendChild(titleElement);
+      }
+  
+      const markdownHtml = ReactDOMServer.renderToString(
+        React.createElement(ReactMarkdownComponent, { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeRaw], components: markdownComponents }, contentToExport)
+      );
+  
+      const contentContainer = document.createElement('div');
+      contentContainer.innerHTML = markdownHtml;
+      tempDiv.appendChild(contentContainer);
+      document.body.appendChild(tempDiv);
+  
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      pdf.setLanguage('en-US');
+      pdf.setProperties({
+        title: sourceNameToPrint || 'StudySmarts Notes',
+        subject: 'Study Notes',
+        author: 'StudySmarts',
+        keywords: 'study notes, education',
+        creator: 'StudySmarts PDF Export'
+      });
+      if (sourceNameToPrint) {
+         pdf.text(sourceNameToPrint, 15, 15); // Add title at top of first page
+      }
+  
+      const A4_WIDTH_MM = 210;
+      const A4_HEIGHT_MM = 297;
+      const PAGE_MARGIN_MM = 15;
+      const CONTENT_WIDTH_MM = A4_WIDTH_MM - (2 * PAGE_MARGIN_MM);
+      const CONTENT_HEIGHT_MM = A4_HEIGHT_MM - (2 * PAGE_MARGIN_MM);
+  
+      // Use a fixed DPI for consistent px calculation for html2canvas internal logic
+      const DPI_FOR_CALCULATION = 96; 
+      const CONTENT_HEIGHT_PX_PER_PAGE = CONTENT_HEIGHT_MM * (DPI_FOR_CALCULATION / 25.4);
+      
+      // Get total height of rendered content in tempDiv (in pixels)
+      const totalRenderedContentHeightInPX = tempDiv.offsetHeight;
+      const pageCount = Math.ceil(totalRenderedContentHeightInPX / CONTENT_HEIGHT_PX_PER_PAGE);
+  
+      for (let i = 0; i < pageCount; i++) {
+        setExportProgress(Math.round(((i + 1) / pageCount) * 100));
+  
+        if (mermaidScriptLoaded && typeof window !== 'undefined' && (window as any).mermaid) {
+          const diagramsOnPage = tempDiv.querySelectorAll('.mermaid');
+          if (diagramsOnPage.length > 0) {
+            await (window as any).mermaid.run({ nodes: diagramsOnPage });
+            await new Promise(r => setTimeout(r, 200)); // Delay for rendering
+          }
+        }
+  
+        const canvas = await html2canvas(tempDiv, {
+          y: i * CONTENT_HEIGHT_PX_PER_PAGE, // Offset in pixels from the top of tempDiv
+          height: CONTENT_HEIGHT_PX_PER_PAGE, // Height of the section to capture in pixels
+          width: tempDiv.offsetWidth, // Capture the actual rendered width of tempDiv
+          scale: 3, // Higher scale for better quality
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          imageTimeout: 15000,
+          onclone: (clonedDoc) => {
+            const style = clonedDoc.createElement('style');
+            document.head.querySelectorAll('style, link[rel="stylesheet"]').forEach(s => {
+              if (s.tagName === 'STYLE') {
+                style.innerHTML += s.innerHTML;
+              } else if (s.tagName === 'LINK' && (s as HTMLLinkElement).href) {
+                // For linked stylesheets, ideally, fetch and inline, or ensure they are accessible
+                // For simplicity here, we're copying the outerHTML, but this might not load external CSS for html2canvas
+                style.innerHTML += s.outerHTML; 
+              }
+            });
+            clonedDoc.head.appendChild(style);
+          }
+        });
+  
+        const imgData = canvas.toDataURL('image/png');
+        if (i > 0) pdf.addPage();
+        
+        pdf.addImage(imgData, 'PNG', PAGE_MARGIN_MM, PAGE_MARGIN_MM, CONTENT_WIDTH_MM, CONTENT_HEIGHT_MM);
+        pdf.setFontSize(10);
+        pdf.text(`Page ${i + 1} of ${pageCount}`, A4_WIDTH_MM / 2, A4_HEIGHT_MM - (PAGE_MARGIN_MM / 2), { align: 'center' });
+        
+        setLastSuccessfulPage(i);
+        await new Promise(r => setTimeout(r, 50)); // Small delay for browser responsiveness
+      }
+  
+      pdf.save(`${sourceNameToPrint || 'StudySmarts-Notes'}.pdf`);
+      toast({ title: 'PDF Exported', description: 'Notes saved as PDF file.' });
+  
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      if (lastSuccessfulPage > -1 && lastSuccessfulPage < (pageCountRef.current -1) ) { // pageCountRef needs to be defined
+        // Attempt to save partial PDF
+        // pdf.save(...) needs to be accessible here, or handle state to trigger save from outside
+        toast({
+          title: 'Partial PDF Exported',
+          description: `Exported ${lastSuccessfulPage + 1} page(s) before an error occurred. Try reducing note complexity.`,
+          variant: 'destructive'
+        });
+         // Potentially: pdf.save(`${sourceNameToPrint || 'StudySmarts-Notes'}_partial.pdf`);
+         // This requires pdf object to be in a broader scope or passed around.
+      } else {
+        toast({ title: 'Export Failed', description: `Failed to generate PDF. ${(error as Error).message || 'Please try again.'}`, variant: 'destructive' });
+      }
+    } finally {
+      if (document.querySelector('.markdown-export-container')) {
+        document.body.removeChild(document.querySelector('.markdown-export-container')!);
+      }
+      setIsExporting(false);
+      setExportProgress(0);
+      setLastSuccessfulPage(-1);
+    }
+  };
+  const pageCountRef = useRef(0); // To store pageCount for error handling
+
+  useEffect(() => {
+    // Update pageCountRef whenever it's calculated
+    if(isExporting) {
+        const DPI_FOR_CALCULATION = 96; 
+        const A4_HEIGHT_MM = 297;
+        const PAGE_MARGIN_MM = 15;
+        const CONTENT_HEIGHT_MM = A4_HEIGHT_MM - (2 * PAGE_MARGIN_MM);
+        const CONTENT_HEIGHT_PX_PER_PAGE = CONTENT_HEIGHT_MM * (DPI_FOR_CALCULATION / 25.4);
+        const tempDiv = document.querySelector('.markdown-export-container') as HTMLDivElement;
+        if (tempDiv) {
+            const totalRenderedContentHeightInPX = tempDiv.offsetHeight;
+            pageCountRef.current = Math.ceil(totalRenderedContentHeightInPX / CONTENT_HEIGHT_PX_PER_PAGE);
+        }
+    }
+  }, [isExporting, selectedNote]); // Recalculate if selectedNote (content) changes while export is attempted.
+
   
   const markdownComponents = {
       span: ({ node, className, children, ...props }: any) => {
@@ -738,7 +779,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
             >
               {isExporting ? (
                 <>
-                  <LoadingSpinner className="mr-2 h-4 w-4" /> Exporting...
+                  <LoadingSpinner className="mr-2 h-4 w-4" /> Exporting {exportProgress > 0 ? `${exportProgress}%` : '...'}
                 </>
               ) : (
                 <>
