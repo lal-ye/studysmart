@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, useEffect, useCallback } from 'react';
@@ -8,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { generateAndAnalyzeExamAction, getExtraReadingsAction } from '@/lib/actions';
-import type { GenerateAndAnalyzeExamActionInput, GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult, StoredExamAttempt, Article } from '@/lib/actions';
+import type { GenerateAndAnalyzeExamActionInput, GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult, StoredAttempt, Article } from '@/lib/actions';
 import FileUpload from '@/components/common/FileUpload';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +36,7 @@ interface ExamsManagerProps {
 
 type ExamState = 'idle' | 'generating_exam' | 'taking_exam' | 'grading_exam' | 'showing_results' | 'viewing_history';
 
-const EXAMS_HISTORY_KEY = 'studySmartsExamHistory';
+const STUDY_SMARTS_HISTORY_KEY = 'studySmartsAttemptsHistory'; // Unified key
 
 // Type for toast arguments used within this component
 interface ToastArgsForPage {
@@ -59,8 +58,8 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [examName, setExamName] = useState<string>('');
 
-  const [examHistory, setExamHistory] = useState<StoredExamAttempt[]>([]);
-  const [viewingExamAttempt, setViewingExamAttempt] = useState<StoredExamAttempt | null>(null);
+  const [examHistory, setExamHistory] = useState<StoredAttempt[]>([]);
+  const [viewingExamAttempt, setViewingExamAttempt] = useState<StoredAttempt | null>(null);
 
 
   const [isProcessingAction, startProcessingActionTransition] = useTransition();
@@ -71,18 +70,25 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
 
   const loadExamHistory = useCallback(() => {
     try {
-      const historyString = localStorage.getItem(EXAMS_HISTORY_KEY);
-      const allAttempts: StoredExamAttempt[] = historyString ? JSON.parse(historyString) : [];
-      setExamHistory(allAttempts.filter(attempt => attempt.subjectId === subjectId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      const historyString = localStorage.getItem(STUDY_SMARTS_HISTORY_KEY);
+      const allAttempts: StoredAttempt[] = historyString ? JSON.parse(historyString) : [];
+      // Filter for exams specifically for this subject for this manager
+      setExamHistory(allAttempts.filter(attempt => attempt.subjectId === subjectId && attempt.type === 'Exam').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     } catch (error) {
       console.error("Failed to load exam history:", error);
       setToastArgs({ title: "Error", description: "Could not load exam history.", variant: "destructive" });
       setExamHistory([]);
     }
-  }, [subjectId]); // Removed toast from dependency array
+  }, [subjectId]);
 
   useEffect(() => { loadExamHistory(); }, [loadExamHistory]);
-  useEffect(() => { if (toastArgs) { toast(toastArgs); setToastArgs(null); }}, [toastArgs, toast]);
+  
+  useEffect(() => { 
+    if (toastArgs) { 
+      toast(toastArgs); 
+      setToastArgs(null); 
+    }
+  }, [toastArgs, toast]);
 
 
   const handleGenerateExam = () => {
@@ -137,35 +143,35 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
       try {
         const answersArray = persistedExamQuestions.map((_, index) => userAnswers[index] || ""); 
         const input: GenerateAndAnalyzeExamActionInput = { 
-          courseMaterial: courseMaterial || "Exam context if material cleared", // Pass context if needed
+          courseMaterial: courseMaterial || "Exam context if material cleared", 
           numberOfQuestions: persistedExamQuestions.length, 
           userAnswers: answersArray,
           exam: persistedExamQuestions, 
         };
         const result = await generateAndAnalyzeExamAction(input);
         
-        const finalResults = result.results; // Use the results from the action directly
+        const finalResults = result.results;
         const overallScore = finalResults.length > 0 ? finalResults.filter(r => r.isCorrect).length / finalResults.length * 100 : 0;
         const attemptId = Date.now().toString();
         
-        const newAttempt: StoredExamAttempt = {
+        const newAttempt: StoredAttempt = {
             id: attemptId,
             subjectId,
             subjectName, 
             name: examName.trim() || `Exam - ${new Date().toLocaleString()}`, 
+            type: 'Exam', // Set type to Exam
             date: new Date().toISOString().split('T')[0], 
-            examQuestions: persistedExamQuestions, // Store the questions that were actually taken
-            examResults: finalResults, // Store the results from the action
+            examQuestions: persistedExamQuestions, 
+            examResults: finalResults, 
             overallScore: overallScore,
             topicsToReview: result.topicsToReview,
-            // Note: extraReadings are not stored with the attempt to keep it focused on the specific attempt result
         };
 
         try {
-            const allHistoryString = localStorage.getItem(EXAMS_HISTORY_KEY);
-            const allHistory: StoredExamAttempt[] = JSON.parse(allHistoryString) : [];
+            const allHistoryString = localStorage.getItem(STUDY_SMARTS_HISTORY_KEY);
+            const allHistory: StoredAttempt[] = allHistoryString ? JSON.parse(allHistoryString) : [];
             allHistory.push(newAttempt);
-            localStorage.setItem(EXAMS_HISTORY_KEY, JSON.stringify(allHistory));
+            localStorage.setItem(STUDY_SMARTS_HISTORY_KEY, JSON.stringify(allHistory));
             
             setExamHistory(prev => [newAttempt, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
             setToastArgs({ title: 'Exam Graded & Saved!', description: 'Your results are ready and saved to your history.' });
@@ -174,7 +180,7 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
             setToastArgs({ title: 'Exam Graded (Save Failed)', description: 'Results ready, but failed to save to history.', variant: 'destructive' });
         }
 
-        setExamResultsData({ ...result, exam: persistedExamQuestions, results: finalResults, topicsToReview: result.topicsToReview, extraReadings: [] }); // Display current results
+        setExamResultsData({ ...result, exam: persistedExamQuestions, results: finalResults, topicsToReview: result.topicsToReview, extraReadings: [] });
         setExamState('showing_results');
 
       } catch (error) {
@@ -206,7 +212,6 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
             return { ...prevData, extraReadings: updatedReadings };
           });
         } else if (!isCurrentExam && viewingExamAttempt) {
-           // Update viewingExamAttempt state directly to show readings for historical attempt
            setViewingExamAttempt(prevAttempt => {
                 if (!prevAttempt) return null;
                 const existingUrls = new Set((prevAttempt.extraReadings || []).map(ar => ar.url));
@@ -245,17 +250,17 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
     setViewingExamAttempt(null);
   };
 
-  const handleViewExamHistoryItem = (attempt: StoredExamAttempt) => {
-    setViewingExamAttempt({...attempt, extraReadings: []}); // Initialize extraReadings for history view
+  const handleViewExamHistoryItem = (attempt: StoredAttempt) => {
+    setViewingExamAttempt({...attempt, extraReadings: attempt.extraReadings || []});
     setExamState('viewing_history');
   };
   
   const handleDeleteExamAttempt = (attemptId: string) => {
-    const allHistoryString = localStorage.getItem(EXAMS_HISTORY_KEY);
+    const allHistoryString = localStorage.getItem(STUDY_SMARTS_HISTORY_KEY);
     if (allHistoryString) {
-        const allHistory: StoredExamAttempt[] = JSON.parse(allHistoryString);
+        const allHistory: StoredAttempt[] = JSON.parse(allHistoryString);
         const updatedHistory = allHistory.filter(attempt => attempt.id !== attemptId);
-        localStorage.setItem(EXAMS_HISTORY_KEY, JSON.stringify(updatedHistory));
+        localStorage.setItem(STUDY_SMARTS_HISTORY_KEY, JSON.stringify(updatedHistory));
         setExamHistory(prev => prev.filter(a => a.id !== attemptId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         if (viewingExamAttempt?.id === attemptId) {
             setViewingExamAttempt(null);
@@ -291,15 +296,15 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
     );
   }
 
-  const renderExamResultsView = (resultsOutput: GenerateExamAndAnalyzeOutput | (StoredExamAttempt & { extraReadings?: Article[] }), isHistoryView: boolean) => {
-    const examData = 'overallScore' in resultsOutput ? resultsOutput : null; 
+  const renderExamResultsView = (resultsOutput: GenerateExamAndAnalyzeOutput | StoredAttempt, isHistoryView: boolean) => {
+    const examData = 'type' in resultsOutput && resultsOutput.type === 'Exam' ? resultsOutput : null; 
     const currentData = 'results' in resultsOutput ? resultsOutput : null; 
 
     const questions = examData ? examData.examQuestions : currentData!.exam;
     const results = examData ? examData.examResults : currentData!.results;
     const topicsToReview = examData ? examData.topicsToReview : currentData!.topicsToReview;
-    const extraReadings = examData ? examData.extraReadings || [] : currentData!.extraReadings || []; // Handle potential missing prop
-    const overallScore = examData ? examData.overallScore : results.filter(r => r.isCorrect).length / questions.length * 100;
+    const extraReadings = examData ? examData.extraReadings || [] : currentData!.extraReadings || [];
+    const overallScore = examData ? examData.overallScore : (results.filter(r => r.isCorrect).length / questions.length * 100);
     const displayName = examData ? examData.name : examName;
 
     return (
@@ -324,7 +329,8 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
   }
   
   if (examState === 'viewing_history' && viewingExamAttempt) {
-    return renderExamResultsView(viewingExamAttempt, true);
+    // Ensure viewingExamAttempt is treated as StoredAttempt for rendering
+    return renderExamResultsView(viewingExamAttempt as StoredAttempt, true);
   }
 
   // Idle state
