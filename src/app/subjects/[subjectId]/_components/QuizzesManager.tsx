@@ -56,9 +56,19 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
   const cardInnerRef = useRef<HTMLDivElement>(null);
   const frontFaceRef = useRef<HTMLDivElement>(null);
   const backFaceRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef({ x: 0, y: 0 });
+
+
+  if (!flashcard.question || !flashcard.answer) {
+    return (
+      <div className="w-full p-4 border-3 border-border shadow-neo-md rounded-none bg-destructive text-destructive-foreground">
+        <p>Invalid flashcard data: Question or answer is missing.</p>
+      </div>
+    );
+  }
 
   const adjustHeight = useCallback(() => {
-    requestAnimationFrame(() => { // Use requestAnimationFrame for smoother updates
+    requestAnimationFrame(() => {
       if (cardInnerRef.current && frontFaceRef.current && backFaceRef.current) {
         const frontHeight = frontFaceRef.current.scrollHeight;
         const backHeight = backFaceRef.current.scrollHeight;
@@ -66,19 +76,20 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
         cardInnerRef.current.style.height = `${maxHeight}px`;
       }
     });
-  }, []);
+  }, []); // Removed flashcard and isFlipped from deps as adjustHeight itself is called when they change
 
   useEffect(() => {
     adjustHeight();
-    // Optional: Re-adjust on flip if content height might change significantly
+     // Set a timeout to adjust again after content likely rendered
+    const timeoutId = setTimeout(adjustHeight, 100);
+    
+    window.addEventListener('resize', adjustHeight);
+    return () => {
+        window.removeEventListener('resize', adjustHeight);
+        clearTimeout(timeoutId);
+    }
   }, [flashcard, isFlipped, adjustHeight]);
 
-  useEffect(() => {
-    // Adjust height initially and on resize
-    adjustHeight();
-    window.addEventListener('resize', adjustHeight);
-    return () => window.removeEventListener('resize', adjustHeight);
-  }, [adjustHeight]);
 
   const handleMouseUpCapture = (contextText: string) => (event: React.MouseEvent) => {
     const selection = window.getSelection()?.toString().trim();
@@ -102,39 +113,73 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
   };
 
   const handleCardClick = (event: React.MouseEvent) => {
-    // Prevent flip if user is selecting text
     if (window.getSelection()?.toString().trim()) {
       return;
     }
     setIsFlipped(!isFlipped);
   };
+  
+  const handleTouchStart = (event: React.TouchEvent) => {
+    touchStartRef.current = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+    };
+  };
 
-  // Neobrutalist Flashcard Styles
-  const cardStyle: CSSProperties = { width: '100%', minHeight: '150px', perspective: '1000px' };
-  const cardInnerStyle: CSSProperties = { position: 'relative', width: '100%', height: '100%', textAlign: 'initial', transformStyle: 'preserve-3d', transition: 'transform 0.6s', transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' };
-  const faceBaseStyle = `absolute w-full h-full backface-hidden flex flex-col justify-between p-4 border-3 border-border shadow-neo-md rounded-none box-sizing-border-box overflow-y-auto`; // Neobrutalist base: border-3, rounded-none, shadow-neo-md
-  const frontFaceStyle = `${faceBaseStyle} bg-card text-card-foreground z-2`;
-  const backFaceStyle = `${faceBaseStyle} bg-secondary text-secondary-foreground transform rotate-y-180`;
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    const touchDelta = {
+        x: event.changedTouches[0].clientX - touchStartRef.current.x,
+        y: event.changedTouches[0].clientY - touchStartRef.current.y,
+    };
+
+    if (Math.abs(touchDelta.x) < 10 && Math.abs(touchDelta.y) < 10) { // Increased tap threshold
+        setIsFlipped(!isFlipped);
+    }
+  };
+
 
   return (
     <div
-      className="w-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-none" // rounded-none
-      style={cardStyle}
+      className="w-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-none"
+      style={{ width: '100%', minHeight: '150px', perspective: '1000px' }}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       tabIndex={0}
       role="button"
+      aria-roledescription="flashcard"
       aria-pressed={isFlipped}
-      aria-label={`Flashcard: ${flashcard.question}. Click or press Enter to flip.`}
+      aria-label={isFlipped 
+        ? `Flashcard answer: ${flashcard.answer.substring(0, 50)}... Click or press Enter to flip.` 
+        : `Flashcard question: ${flashcard.question}. Click or press Enter to flip.`
+      }
     >
-      <div ref={cardInnerRef} style={cardInnerStyle}>
+      <div 
+        ref={cardInnerRef} 
+        style={{ 
+          position: 'relative', 
+          width: '100%', 
+          height: '100%', 
+          textAlign: 'initial', 
+          transformStyle: 'preserve-3d', 
+          transition: 'transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1)', 
+          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+          willChange: 'transform',
+        }}
+      >
         {/* Front Face */}
         <div
           ref={frontFaceRef}
-          className={frontFaceStyle}
+          className="absolute w-full h-full flex flex-col justify-between p-4 border-3 border-border shadow-neo-md rounded-none box-sizing-border-box overflow-y-auto bg-card text-card-foreground"
           onMouseUpCapture={handleMouseUpCapture(flashcard.question)}
           onContextMenuCapture={handleContextMenuCapture(flashcard.question)}
-          style={{ backfaceVisibility: 'hidden' }} // Explicit style for compatibility
+          style={{ 
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden', // For Safari
+            zIndex: isFlipped ? 0 : 1
+          }}
+          aria-hidden={isFlipped}
         >
           <div>
             <p className="text-xs text-muted-foreground mb-1">ID: {flashcard.id}</p>
@@ -145,13 +190,20 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
             <RotateCcw className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </div>
         </div>
+        
         {/* Back Face */}
         <div
           ref={backFaceRef}
-          className={backFaceStyle}
+          className="absolute w-full h-full flex flex-col justify-between p-4 border-3 border-border shadow-neo-md rounded-none box-sizing-border-box overflow-y-auto bg-secondary text-secondary-foreground"
           onMouseUpCapture={handleMouseUpCapture(flashcard.answer)}
           onContextMenuCapture={handleContextMenuCapture(flashcard.answer)}
-          style={{ backfaceVisibility: 'hidden' }} // Explicit style for compatibility
+          style={{ 
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden', // For Safari
+            transform: 'rotateY(180deg)',
+            zIndex: isFlipped ? 1 : 0
+          }}
+          aria-hidden={!isFlipped}
         >
           <div>
             <h4 className="text-md font-bold mb-2">Answer:</h4>
@@ -294,7 +346,7 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
     }
   };
 
-  const handleFileRead = (content: string, fileName?: string) => { setCourseMaterial(content); }; // Added fileName handling
+  const handleFileRead = (content: string, fileName?: string) => { setCourseMaterial(content); }; 
   const handleTextSelection = (text: string, context: string) => { setSelectedText(text); setSelectedTextContext(context); };
   const handleContextMenuOpen = (x: number, y: number, context: string) => { if (selectedText) { setContextMenuPosition({ x, y }); setSelectedTextContext(context); setShowContextMenu(true); }};
   const handleCloseContextMenu = useCallback(() => { setShowContextMenu(false); }, []);
@@ -354,12 +406,12 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
             <CardDescription>Input material, name your quiz, and set length.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <FileUpload onFileRead={handleFileRead} />
+            <FileUpload onFileRead={handleFileRead} aria-label="Upload course material file" />
             <div><Label htmlFor="courseMaterialTextQuiz" className="font-bold">Course Material (Paste)</Label><Textarea id="courseMaterialTextQuiz" placeholder="Paste material..." value={courseMaterial} onChange={(e) => setCourseMaterial(e.target.value)} rows={8} className="min-h-[150px]" aria-label="Course material for quiz"/></div>
             <div><Label htmlFor="quizNameInput" className="font-bold">Quiz Name</Label><Input id="quizNameInput" placeholder="e.g., Chapter 1 Review" value={quizName} onChange={(e) => setQuizName(e.target.value)} aria-label="Quiz name"/></div>
             <div><Label htmlFor="quizLengthInput" className="font-bold">Number of Flashcards (1-20)</Label><Input id="quizLengthInput" type="number" value={quizLength} onChange={(e) => setQuizLength(Math.max(1, Math.min(20, parseInt(e.target.value,10) || 1)))} min="1" max="20" aria-label="Number of flashcards"/></div>
           </CardContent>
-          <CardFooter><Button onClick={handleGenerateQuiz} disabled={isGeneratingQuiz || !courseMaterial.trim() || !quizName.trim()}>{isGeneratingQuiz ? <LoadingSpinner className="mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}Generate Quiz</Button></CardFooter>
+          <CardFooter><Button onClick={handleGenerateQuiz} disabled={isGeneratingQuiz || !courseMaterial.trim() || !quizName.trim()} aria-label="Generate new quiz from provided material">{isGeneratingQuiz ? <LoadingSpinner className="mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}Generate Quiz</Button></CardFooter>
         </Card>
       )}
 
@@ -372,12 +424,12 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
                 <CardTitle className="text-xl font-bold">{viewingQuiz ? `Viewing Quiz: ${displayQuizName}` : `New Quiz Preview: ${displayQuizName}`} ({displayFlashcards.length} Cards)</CardTitle>
                 {!viewingQuiz && currentFlashcards.length > 0 && (
                     <div className="flex gap-2">
-                        <Button onClick={handleSaveGeneratedQuiz} className="bg-primary hover:bg-primary/90"><Save className="mr-2 h-4 w-4" /> Save This Quiz</Button>
-                        <Button variant="outline" onClick={() => {setCurrentFlashcards([]); setCourseMaterial(''); setQuizName('');}}><Trash2 className="mr-2 h-4 w-4" /> Discard Preview</Button>
+                        <Button onClick={handleSaveGeneratedQuiz} className="bg-primary hover:bg-primary/90" aria-label="Save current quiz"><Save className="mr-2 h-4 w-4" /> Save This Quiz</Button>
+                        <Button variant="outline" onClick={() => {setCurrentFlashcards([]); setCourseMaterial(''); setQuizName('');}} aria-label="Discard current quiz preview"><Trash2 className="mr-2 h-4 w-4" /> Discard Preview</Button>
                     </div>
                 )}
                  {viewingQuiz && (
-                    <Button variant="outline" onClick={() => {setViewingQuiz(null); setCurrentFlashcards([]);}} aria-label="Close quiz view">
+                    <Button variant="outline" onClick={() => {setViewingQuiz(null); setCurrentFlashcards([]);}} aria-label="Close quiz view and return to list/generation">
                         Close View
                     </Button>
                 )}
