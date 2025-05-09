@@ -324,7 +324,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     });
   };
   
-  const handleExportPdf = (contentToExport: string, sourceName?: string) => {
+  const handleExportPdf = (contentToExport: string, sourceNameToPrint?: string) => {
     if (!contentToExport && !notesOutputRef.current) {
         toast({ title: 'No Content', description: 'Nothing to export to PDF.', variant: 'destructive' });
         return;
@@ -333,25 +333,24 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
     const printWindow = window.open('', '_blank');
     if (printWindow) {
         printWindow.document.open();
-        // Inject Tailwind styles and custom styles for printing
-        // Note: This is a simplified approach. For complex styles, consider dedicated PDF libraries.
-        const tailwindStyles = Array.from(window.opener.document.querySelectorAll('style, link[rel="stylesheet"]'))
+        
+        const tailwindStyles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
             .map(el => el.outerHTML)
             .join('');
         
-        const bodyClasses = window.opener.document.body.className; // Capture body classes for theme (dark/light)
+        const bodyClasses = document.body.className; 
 
         printWindow.document.write(`
             <html>
             <head>
-                <title>Print Notes: ${sourceName || 'StudySmarts Notes'}</title>
+                <title>Print Notes: ${sourceNameToPrint || 'StudySmarts Notes'}</title>
                 ${tailwindStyles}
                 <style>
                     body { margin: 20px; font-family: var(--font-jetbrains-mono), monospace; }
-                    .prose { max-width: 100% !important; } /* Override prose max-width for printing */
-                    .mermaid { page-break-inside: avoid; } /* Attempt to keep diagrams on one page */
+                    .prose { max-width: 100% !important; } 
+                    .mermaid { page-break-inside: avoid; } 
                     @media print {
-                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } /* Ensure colors print */
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
                         .no-print { display: none !important; }
                     }
                 </style>
@@ -385,9 +384,8 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
                             } finally {
                                 printWindow.focus(); 
                                 printWindow.print();
-                                // printWindow.close(); // Auto-close can be disruptive
                             }
-                        }, 1500); // Increased delay for more complex content and styles
+                        }, 1500); 
                     }
                     
                     if (printWindow.document.readyState === 'complete') {
@@ -412,7 +410,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
         if (className === 'citation') {
           return (
             <span
-              className="inline-block px-2 py-0.5 mx-0.5 text-xs font-bold text-primary-foreground bg-primary rounded-full border border-border align-middle leading-none shadow-neo-sm" // Pill-like format
+              className="inline-block px-2 py-0.5 mx-0.5 text-xs font-bold text-primary-foreground bg-primary rounded-full border border-border align-middle leading-none shadow-neo-sm" 
               {...props}
             >
               {children}
@@ -447,16 +445,15 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
   
         if (calloutType) {
           let iconComponent;
-          let borderColorHex, bgColorHex, iconColorHex, textColorHex; // Use hex for direct style to avoid purge issues
+          let borderColorHex, bgColorHex, iconColorHex, textColorHex; 
 
-          switch (calloutType) { // Colors adjusted for Neobrutalism (ensure high contrast with theme)
-            case 'NOTE': iconComponent = <NoteIcon className="h-5 w-5" />; borderColorHex = '#3b82f6'; bgColorHex = '#eff6ff'; iconColorHex = '#2563eb'; textColorHex = '#1e40af'; break; // Blue
-            case 'IMPORTANT': iconComponent = <WarningIcon className="h-5 w-5" />; borderColorHex = '#f59e0b'; bgColorHex = '#fffbeb'; iconColorHex = '#d97706'; textColorHex = '#92400e'; break; // Amber/Yellow
-            case 'TIP': iconComponent = <TipIcon className="h-5 w-5" />; borderColorHex = '#10b981'; bgColorHex = '#ecfdf5'; iconColorHex = '#059669'; textColorHex = '#047857'; break; // Green
+          switch (calloutType) { 
+            case 'NOTE': iconComponent = <NoteIcon className="h-5 w-5" />; borderColorHex = '#3b82f6'; bgColorHex = '#eff6ff'; iconColorHex = '#2563eb'; textColorHex = '#1e40af'; break; 
+            case 'IMPORTANT': iconComponent = <WarningIcon className="h-5 w-5" />; borderColorHex = '#f59e0b'; bgColorHex = '#fffbeb'; iconColorHex = '#d97706'; textColorHex = '#92400e'; break; 
+            case 'TIP': iconComponent = <TipIcon className="h-5 w-5" />; borderColorHex = '#10b981'; bgColorHex = '#ecfdf5'; iconColorHex = '#059669'; textColorHex = '#047857'; break; 
             default: return <blockquote className="border-l-4 border-foreground pl-4 italic my-4 bg-muted/30 p-3 rounded-r-md shadow-neo-sm text-muted-foreground" {...props}>{children}</blockquote>;
           }
           
-          // Dark mode colors (ensure these contrast well with dark theme background)
           const darkBorderColorHex = calloutType === 'NOTE' ? '#60a5fa' : calloutType === 'IMPORTANT' ? '#facc15' : '#34d399';
           const darkBgColorHex = calloutType === 'NOTE' ? 'rgba(59,130,246,0.15)' : calloutType === 'IMPORTANT' ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)';
           const darkIconColorHex = calloutType === 'NOTE' ? '#93c5fd' : calloutType === 'IMPORTANT' ? '#fde047' : '#6ee7b7';
@@ -489,7 +486,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
                 size="sm"
                 onClick={() => setDiagramCode(String(codeChild.props.children).replace(/\n$/, ''))}
                 aria-label="View diagram in pop-out window"
-                className="mb-2 bg-background hover:bg-accent text-xs" // Smaller button
+                className="mb-2 bg-background hover:bg-accent text-xs" 
               >
                 <Eye className="mr-2 h-3 w-3" /> View Diagram
               </Button>
@@ -519,21 +516,21 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
       summary: ({node, ...props}: any) => <summary className="font-bold cursor-pointer hover:text-primary list-inside text-card-foreground" {...props} />,
       h1: ({node, ...props}: any) => <h1 className="text-3xl lg:text-4xl font-extrabold my-5 text-primary border-b-3 border-border pb-2" {...props} />,
       h2: ({node, ...props}: any) => <h2 className="text-2xl lg:text-3xl font-bold my-4 text-foreground border-b-2 border-border pb-1" {...props} />,
-      h3: ({node, ...props}: any) => <h3 className="text-xl lg:text-2xl font-bold my-3 text-foreground" {...props} />, // font-semibold to font-bold
-      h4: ({node, ...props}: any) => <h4 className="text-lg lg:text-xl font-bold my-2 text-foreground" {...props} />, // font-semibold to font-bold
+      h3: ({node, ...props}: any) => <h3 className="text-xl lg:text-2xl font-bold my-3 text-foreground" {...props} />, 
+      h4: ({node, ...props}: any) => <h4 className="text-lg lg:text-xl font-bold my-2 text-foreground" {...props} />, 
       ul: ({node, ...props}: any) => <ul className="list-disc pl-6 my-3 space-y-1 text-foreground" {...props} />,
       ol: ({node, ...props}: any) => <ol className="list-decimal pl-6 my-3 space-y-1 text-foreground" {...props} />,
       li: ({node, ...props}: any) => <li className="mb-1 leading-relaxed" {...props} />,
       p: ({node, ...props}: any) => <p className="my-3 leading-relaxed text-foreground" {...props} />,
-      a: ({node, ...props}: any) => <a className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring font-bold" {...props} />, // Added font-bold
-      hr: ({node, ...props}: any) => <hr className="my-6 border-t-2 border-border" {...props} />, // Thicker hr
+      a: ({node, ...props}: any) => <a className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring font-bold" {...props} />, 
+      hr: ({node, ...props}: any) => <hr className="my-6 border-t-2 border-border" {...props} />, 
   };
 
   const currentDisplayContent = isViewingNote && selectedNote ? selectedNote.content : generatedNotesContent;
   const currentSourceName = isViewingNote && selectedNote ? selectedNote.sourceName : sourceName;
   
   const renderProgressBar = () => (
-     <div className="relative w-full mt-4 rounded-none h-2.5 bg-muted border-2 border-border shadow-neo-sm"> {/* Neobrutalist progress bar */}
+     <div className="relative w-full mt-4 rounded-none h-2.5 bg-muted border-2 border-border shadow-neo-sm"> 
         <div 
             className="absolute left-0 top-0 h-full bg-primary transition-[width] duration-300 border-r-2 border-border" 
             style={{ width: `${generationProgress}%` }}
@@ -651,7 +648,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
               rows={20}
-              className="min-h-[400px] font-mono text-sm" // font-mono matches body
+              className="min-h-[400px] font-mono text-sm" 
               aria-label="Edit note content"
             />
           </CardContent>
@@ -671,7 +668,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
           <CardHeader>
             <div className="flex justify-between items-center">
                 <CardTitle className="text-xl font-bold">{selectedNote.sourceName}</CardTitle>
-                <Button variant="outline" size="sm" onClick={() => {setIsViewingNote(false); setSelectedNote(null);}} aria-label="Close note view and return to list/generation" className="shadow-none active:shadow-none"> {/* Smaller close button */}
+                <Button variant="outline" size="sm" onClick={() => {setIsViewingNote(false); setSelectedNote(null);}} aria-label="Close note view and return to list/generation" className="shadow-none active:shadow-none"> 
                     Close View
                 </Button>
             </div>
@@ -730,7 +727,7 @@ export default function NotesManager({ subjectId, subjectName }: NotesManagerPro
                                 <Trash2 className="mr-1 h-4 w-4" /> Delete
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent className="shadow-neo-lg border-3 rounded-none"> {/* Neobrutalist Dialog */}
+                        <AlertDialogContent className="shadow-neo-lg border-3 rounded-none"> 
                         <AlertDialogHeader>
                             <AlertDialogTitle className="font-bold">Delete Note: {note.sourceName || "Untitled Note"}?</AlertDialogTitle>
                             <AlertDialogDescription>
