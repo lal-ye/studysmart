@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { generateAndAnalyzeExamAction, getExtraReadingsAction } from '@/lib/actions';
-import type { GenerateAndAnalyzeExamActionInput, GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult, StoredAttempt, Article } from '@/lib/actions';
+import type { GenerateAndAnalyzeExamActionInput } from '@/lib/actions'; // This is action specific
+import type { GenerateExamAndAnalyzeOutput, ExamQuestion, ExamResult, StoredAttempt, Article } from '@/lib/types'; // These are from types.ts
 import FileUpload from '@/components/common/FileUpload';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -52,8 +53,8 @@ export default function ExamsManager({ subjectId, subjectName }: ExamsManagerPro
   
   const [currentExamQuestions, setCurrentExamQuestions] = useState<ExamQuestion[]>([]);
   const [persistedExamQuestions, setPersistedExamQuestions] = useState<ExamQuestion[]>([]); 
-  const [examResultsData, setExamResultsData] = useState<GenerateExamAndAnalyzeOutput | null>(null); 
-  
+  const [examResultsData, setExamResultsData] = useState<GenerateExamAndAnalyzeOutput | null>(null);
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [examName, setExamName] = useState<string>('');

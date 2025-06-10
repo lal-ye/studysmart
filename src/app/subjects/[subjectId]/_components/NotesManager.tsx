@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
-import { generateNotesAction, type GenerateNotesActionInput, type StoredNote } from '@/lib/actions';
+import { generateNotesAction, type GenerateNotesActionInput } from '@/lib/actions'; // GenerateNotesActionInput is action specific
+import type { StoredNote } from '@/lib/types'; // StoredNote is from types.ts
 import FileUpload from '@/components/common/FileUpload';
 import { 
     Lightbulb as TipIcon, 

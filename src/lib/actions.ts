@@ -1,12 +1,39 @@
 'use server';
 
-import { generateDynamicNotes as generateDynamicNotesFlow, type GenerateDynamicNotesInput } from '@/ai/flows/generate-dynamic-notes';
-import { generateQuiz, type GenerateQuizInput, type GenerateQuizOutput, type Flashcard } from '@/ai/flows/generate-quiz';
-import { generateExamAndAnalyze as generateExamAndAnalyzeFlow, type GenerateExamAndAnalyzeInput as GenerateExamAndAnalyzeInputFlow, type GenerateExamAndAnalyzeOutput, type ExamQuestion, type ExamResult } from '@/ai/flows/generate-exam-and-analyze';
-import { generateExtraReadings as generateExtraReadingsFlow, type GenerateExtraReadingsInput, type GenerateExtraReadingsOutput } from '@/ai/flows/generate-extra-readings';
-import { extractTextFromPdf as extractTextFromPdfFlow, type ExtractTextFromPdfInput, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
-import { explainTerm as explainTermFlow, type ExplainTermInput, type ExplainTermOutput } from '@/ai/flows/explain-term-flow';
-import type { Article } from '@/services/search-articles';
+// AI Flow function imports
+import { generateDynamicNotes as generateDynamicNotesFlow } from '@/ai/flows/generate-dynamic-notes';
+import { generateQuiz as generateQuizFlow } from '@/ai/flows/generate-quiz'; // Renamed to avoid conflict if GenerateQuizInput/Output were also named generateQuiz
+import { generateExamAndAnalyze as generateExamAndAnalyzeFlow } from '@/ai/flows/generate-exam-and-analyze';
+import { generateExtraReadings as generateExtraReadingsFlow } from '@/ai/flows/generate-extra-readings';
+import { extractTextFromPdf as extractTextFromPdfFlow } from '@/ai/flows/extract-text-from-pdf-flow';
+import { explainTerm as explainTermFlow } from '@/ai/flows/explain-term-flow';
+
+// Type imports from the central types file
+import type {
+  Subject,
+  StoredNote,
+  StoredQuiz,
+  StoredAttempt,
+  DatedScore,
+  TopicPerformance,
+  QuizScoreDistributionItem,
+  AnalyticsSummary,
+  Flashcard,
+  ExamQuestion,
+  ExamResult,
+  Article,
+  GenerateDynamicNotesInput,
+  GenerateQuizInput,
+  GenerateQuizOutput,
+  GenerateExamAndAnalyzeInputFlow, // This was alias for GenerateExamAndAnalyzeInput
+  GenerateExamAndAnalyzeOutput,
+  GenerateExtraReadingsInput,
+  GenerateExtraReadingsOutput,
+  ExtractTextFromPdfInput,
+  ExtractTextFromPdfOutput,
+  ExplainTermInput,
+  ExplainTermOutput
+} from './types';
 
 // Interface for the action to accept an optional sourceName
 export interface GenerateNotesActionInput {
@@ -18,6 +45,7 @@ export async function generateNotesAction(
   input: GenerateNotesActionInput
 ): Promise<string> {
   try {
+    // Ensure the input to the flow matches GenerateDynamicNotesInput from types.ts
     const flowInput: GenerateDynamicNotesInput = {
       material: input.material,
       sourceName: input.sourceName,
@@ -34,10 +62,10 @@ export async function generateNotesAction(
 }
 
 export async function generateQuizAction(
-  input: GenerateQuizInput
-): Promise<Flashcard[]> {
+  input: GenerateQuizInput // Uses GenerateQuizInput from types.ts
+): Promise<Flashcard[]> { // Uses Flashcard from types.ts
   try {
-    const result: GenerateQuizOutput = await generateQuiz(input); 
+    const result: GenerateQuizOutput = await generateQuizFlow(input); // Uses GenerateQuizOutput from types.ts
 
     if (!result.flashcards) { 
         console.warn('[StudySmarts Debug - generateQuizAction] AI returned null/undefined flashcards array.');
@@ -65,6 +93,7 @@ export async function generateQuizAction(
 }
 
 // Make GenerateAndAnalyzeExamActionInput include the optional 'exam' field
+// It uses GenerateExamAndAnalyzeInputFlow and ExamQuestion from types.ts
 export interface GenerateAndAnalyzeExamActionInput extends Omit<GenerateExamAndAnalyzeInputFlow, 'exam' | 'userAnswers' | 'numberOfQuestions'> {
   courseMaterial: string;
   numberOfQuestions?: number;
@@ -75,8 +104,9 @@ export interface GenerateAndAnalyzeExamActionInput extends Omit<GenerateExamAndA
 
 export async function generateAndAnalyzeExamAction(
   input: GenerateAndAnalyzeExamActionInput
-): Promise<GenerateExamAndAnalyzeOutput> {
+): Promise<GenerateExamAndAnalyzeOutput> { // Uses GenerateExamAndAnalyzeOutput from types.ts
   try {
+    // Ensure flowInput matches GenerateExamAndAnalyzeInputFlow from types.ts
     const flowInput: GenerateExamAndAnalyzeInputFlow = {
       courseMaterial: input.courseMaterial,
       numberOfQuestions: input.numberOfQuestions || 30, // Default here if not provided
@@ -95,11 +125,11 @@ export async function generateAndAnalyzeExamAction(
 }
 
 export async function getExtraReadingsAction(
-  input: GenerateExtraReadingsInput
-): Promise<GenerateExtraReadingsOutput> {
+  input: GenerateExtraReadingsInput // Uses GenerateExtraReadingsInput from types.ts
+): Promise<GenerateExtraReadingsOutput> { // Uses GenerateExtraReadingsOutput from types.ts
    try {
     const result = await generateExtraReadingsFlow(input);
-    const articles = result.articles || [];
+    const articles = result.articles || []; // Assumes Article type is consistent via types.ts
     if (articles.length === 1 && articles[0].title === "No Relevant Articles Found") {
         return { articles: [] };
     }
@@ -114,8 +144,8 @@ export async function getExtraReadingsAction(
 }
 
 export async function extractTextFromPdfAction(
-  input: ExtractTextFromPdfInput
-): Promise<ExtractTextFromPdfOutput> {
+  input: ExtractTextFromPdfInput // Uses ExtractTextFromPdfInput from types.ts
+): Promise<ExtractTextFromPdfOutput> { // Uses ExtractTextFromPdfOutput from types.ts
   try {
     const result = await extractTextFromPdfFlow(input);
     return result;
@@ -126,7 +156,9 @@ export async function extractTextFromPdfAction(
   }
 }
 
-export async function explainTermAction(input: ExplainTermInput): Promise<ExplainTermOutput> {
+export async function explainTermAction(
+  input: ExplainTermInput // Uses ExplainTermInput from types.ts
+): Promise<ExplainTermOutput> { // Uses ExplainTermOutput from types.ts
   try {
     const result = await explainTermFlow(input);
     return result;
@@ -139,88 +171,14 @@ export async function explainTermAction(input: ExplainTermInput): Promise<Explai
   }
 }
 
-// --- Subject Interface ---
-export interface Subject {
-  id: string;
-  name: string;
-  createdAt: string; // ISO string
-}
-
-// --- Stored Data Structures ---
-export interface StoredNote {
-  id: string;
-  subjectId: string;
-  content: string; // Markdown content
-  sourceName?: string; // Original source filename or "Pasted Text"
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
-}
-
-export interface StoredQuiz {
-  id: string;
-  subjectId: string;
-  name: string; // User-defined name for the quiz
-  flashcards: Flashcard[];
-  courseMaterialExtract: string; // A small extract or name of material used
-  quizLengthUsed: number;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
-}
-
-// Unified attempt structure for both exams and quizzes
-export interface StoredAttempt {
-  id: string; // Unique ID for this attempt
-  subjectId: string;
-  subjectName: string; // Denormalized for easier display
-  name: string; // User-defined name for this exam/quiz attempt
-  type: 'Exam' | 'Quiz'; // Differentiates between exam and quiz
-  date: string; // 'YYYY-MM-DD'
-  examQuestions: ExamQuestion[]; // Specific to exams, might be empty for quizzes
-  examResults: ExamResult[]; // Specific to exams, might be empty for quizzes
-  overallScore: number;
-  topicsToReview: string[]; // Specific to exams, might be empty for quizzes
-  extraReadings?: Article[]; // Optional, can be populated for exams or quizzes
-}
-
-
-// --- Analytics Data Structures ---
-export interface DatedScore {
-  date: string; // 'YYYY-MM-DD'
-  score: number; // Percentage
-  name: string; // Exam name or Quiz name
-  type: 'Quiz' | 'Exam';
-}
-
-export interface TopicPerformance {
-  topic: string;
-  accuracy: number; // Percentage
-  correct: number;
-  total: number;
-}
-
-export interface QuizScoreDistributionItem {
-    name: string; // e.g., "0-59%", "60-69%", "70-79%", "80-89%", "90-100%"
-    count: number; // Number of quizzes in this score range
-}
-
-export interface AnalyticsSummary {
-  overallAverageScore: number;
-  quizzesTaken: number;
-  examsTaken: number;
-  lastActivityDate: string | null;
-  overallScoreProgress: DatedScore[]; 
-  topicPerformance: TopicPerformance[]; 
-  areasForImprovement: TopicPerformance[]; 
-  quizScoreDistribution: QuizScoreDistributionItem[]; 
-}
-
-
 // --- Analytics Action ---
 // This action is a placeholder as analytics data is primarily computed client-side.
 // However, it can be expanded if server-side processing becomes necessary.
+// It uses AnalyticsSummary from types.ts
 export async function getAnalyticsDataAction(subjectId?: string): Promise<AnalyticsSummary> {
   console.warn(`getAnalyticsDataAction called for subjectId: ${subjectId}. In this version, actual analytics data is loaded client-side from localStorage.`);
   // In a real backend scenario, you would fetch and process data based on subjectId.
+  // The return type AnalyticsSummary and its constituents (DatedScore, TopicPerformance etc.) are all from types.ts
   return {
     overallAverageScore: 0,
     quizzesTaken: 0,
@@ -233,8 +191,4 @@ export async function getAnalyticsDataAction(subjectId?: string): Promise<Analyt
   };
 }
 
-// Export types for frontend usage
-export type { Flashcard, ExamQuestion, ExamResult };
-export type { ExplainTermInput, ExplainTermOutput };
-export type { GenerateExamAndAnalyzeOutput, GenerateExamAndAnalyzeInput as GenerateExamAndAnalyzeInputFlow }; // Export flow's input type
-export type { Article };
+// No more type exports here, they are handled by src/lib/types.ts
