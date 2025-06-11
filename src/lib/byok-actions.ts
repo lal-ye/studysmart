@@ -1,8 +1,8 @@
-python
 'use server';
 
 import { createUserAI } from '@/ai/genkit';
 import { z } from 'genkit';
+import type { ExtractTextFromPdfInput, ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
 
 // BYOK wrapper for quiz generation
 export async function generateQuizWithBYOK(
