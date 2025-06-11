@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BarChart as BarChartIcon, TrendingUp, TrendingDown, AlertTriangle, Activity, Eye, BookOpen, ListChecks, CalendarDays } from 'lucide-react';
 import { ResponsiveContainer, BarChart as RechartsBarChart, XAxis, YAxis, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell, LineChart as RechartsLineChart, Line as RechartsLine, Bar as RechartsBar } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import type { AnalyticsSummary, DatedScore, TopicPerformance, QuizScoreDistributionItem, StoredAttempt, Subject } from '@/lib/actions'; 
+import type { AnalyticsSummary, DatedScore, TopicPerformance, QuizScoreDistributionItem, StoredAttempt, Subject } from '@/lib/types';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";

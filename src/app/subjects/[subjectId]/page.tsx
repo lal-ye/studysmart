@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, BookOpen, ListChecks, ClipboardEdit, AlertTriangle, FolderOpen } from 'lucide-react';
-import type { Subject } from '@/lib/actions'; // Removed StoredNote, StoredQuiz, StoredExamAttempt as they are managed by child components
+import type { Subject } from '@/lib/types'; // Updated to import from types.ts
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import NotesManager from './_components/NotesManager';
 import QuizzesManager from './_components/QuizzesManager';

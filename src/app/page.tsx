@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Folders, PlusCircle, BookOpen, Trash2, ArrowRight } from "lucide-react";
-import type { Subject } from '@/lib/actions'; 
+import type { Subject } from '@/lib/types';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import {
   AlertDialog,
