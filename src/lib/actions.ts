@@ -1,4 +1,6 @@
 
+'use server';
+
 import { generateQuizWithBYOK, generateDynamicNotesWithBYOK, explainTermWithBYOK } from '@/lib/byok-actions';
 
 // BYOK version of generateQuizAction
@@ -71,9 +73,6 @@ export async function explainTermActionBYOK(input: {
     throw new Error(error instanceof Error ? error.message : 'Failed to explain term with provided API key.');
   }
 }
-
-
-'use server';
 
 // AI Flow function imports
 import { generateDynamicNotes as generateDynamicNotesFlow } from '@/ai/flows/generate-dynamic-notes';
