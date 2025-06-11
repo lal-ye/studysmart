@@ -227,6 +227,3 @@ export async function extractTextFromPdfWithBYOK(input: ExtractTextFromPdfInput 
     throw new Error(error instanceof Error ? error.message : 'Failed to extract text from PDF');
   }
 }
-```
-
-This code adds a BYOK version of the PDF extraction function `extractTextFromPdfWithBYOK` that accepts an API key.
