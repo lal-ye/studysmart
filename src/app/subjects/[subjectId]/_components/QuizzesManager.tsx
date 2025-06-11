@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, type CSSProperties, useRef, useEffect, useCallback } from 'react';
@@ -31,6 +30,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+import { APIKeyInput } from '@/components/common/APIKeyInput';
+import { generateQuizActionBYOK } from '@/lib/actions';
 
 
 interface QuizzesManagerProps {
@@ -83,7 +85,7 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
     adjustHeight();
      // Set a timeout to adjust again after content likely rendered
     const timeoutId = setTimeout(adjustHeight, 100);
-    
+
     window.addEventListener('resize', adjustHeight);
     return () => {
         window.removeEventListener('resize', adjustHeight);
@@ -119,7 +121,7 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
     }
     setIsFlipped(!isFlipped);
   };
-  
+
   const handleTouchStart = (event: React.TouchEvent) => {
     touchStartRef.current = {
         x: event.touches[0].clientX,
@@ -191,7 +193,7 @@ function FlashcardComponent({ flashcard, onTextSelect, onContextMenuOpen }: Flas
             <RotateCcw className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </div>
         </div>
-        
+
         {/* Back Face */}
         <div
           ref={backFaceRef}
@@ -242,7 +244,8 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
   const [courseMaterial, setCourseMaterial] = useState('');
   const [quizLength, setQuizLength] = useState(5);
   const [quizName, setQuizName] = useState('');
-  
+  const [openAIKey, setOpenAIKey] = useState('');
+
   const [storedQuizzes, setStoredQuizzes] = useState<StoredQuiz[]>([]);
   const [currentFlashcards, setCurrentFlashcards] = useState<Flashcard[]>([]); 
   const [viewingQuiz, setViewingQuiz] = useState<StoredQuiz | null>(null);
@@ -293,14 +296,14 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
     if (!quizName.trim()) {
       setToastArgs({ title: 'Quiz Name Required', description: 'Please name your quiz.', variant: 'destructive' }); return;
     }
-    
+
     setCurrentFlashcards([]);
     setViewingQuiz(null);
     setShowContextMenu(false); 
 
     startGeneratingQuizTransition(async () => {
       try {
-        const flashcards = await generateQuizAction({ courseMaterial, quizLength });
+        const flashcards = await generateQuizActionBYOK({ courseMaterial, quizLength, openAIKey });
         if (flashcards.length === 0) {
             setToastArgs({ title: 'No Flashcards Generated', description: 'AI returned no flashcards. Try different material or length.' });
         } else {
@@ -313,7 +316,7 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
       }
     });
   };
-  
+
   const handleSaveGeneratedQuiz = () => {
     if (currentFlashcards.length === 0) {
       toast({ title: "No Quiz to Save", description: "Please generate a quiz first.", variant: "destructive" }); return;
@@ -365,21 +368,21 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
       }
     });
   };
-  
+
   const handleViewQuiz = (quiz: StoredQuiz) => {
     setViewingQuiz(quiz);
     setCurrentFlashcards(quiz.flashcards); 
     setCourseMaterial(''); 
     setQuizName('');
   };
-  
+
   const handleDeleteQuiz = (quizId: string) => {
     const allQuizzesString = localStorage.getItem(getQuizzesStorageKey());
     if (allQuizzesString) {
         const allQuizzes: StoredQuiz[] = JSON.parse(allQuizzesString);
         const filteredQuizzes = allQuizzes.filter(q => !(q.id === quizId && q.subjectId === subjectId));
         localStorage.setItem(getQuizzesStorageKey(), JSON.stringify(filteredQuizzes));
-        
+
         setStoredQuizzes(prev => prev.filter(q => q.id !== quizId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         if (viewingQuiz?.id === quizId) {
             setViewingQuiz(null);
@@ -407,6 +410,7 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
             <CardDescription>Input material, name your quiz, and set length.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <APIKeyInput apiKey={openAIKey} setApiKey={setOpenAIKey} />
             <FileUpload onFileRead={handleFileRead} aria-label="Upload course material file" />
             <div><Label htmlFor="courseMaterialTextQuiz" className="font-bold">Course Material (Paste)</Label><Textarea id="courseMaterialTextQuiz" placeholder="Paste material..." value={courseMaterial} onChange={(e) => setCourseMaterial(e.target.value)} rows={8} className="min-h-[150px]" aria-label="Course material for quiz"/></div>
             <div><Label htmlFor="quizNameInput" className="font-bold">Quiz Name</Label><Input id="quizNameInput" placeholder="e.g., Chapter 1 Review" value={quizName} onChange={(e) => setQuizName(e.target.value)} aria-label="Quiz name"/></div>
@@ -497,4 +501,3 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
     </div>
   );
 }
-

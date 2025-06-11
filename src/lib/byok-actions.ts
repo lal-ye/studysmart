@@ -1,0 +1,180 @@
+
+'use server';
+
+import { createUserAI } from '@/ai/genkit';
+import { z } from 'genkit';
+
+// BYOK wrapper for quiz generation
+export async function generateQuizWithBYOK(
+  input: {
+    material: string;
+    quizLength: number;
+    difficulty: string;
+    apiKey: string;
+  }
+) {
+  const userAI = createUserAI(input.apiKey);
+  
+  const GenerateQuizInputSchema = z.object({
+    material: z.string(),
+    quizLength: z.number(),
+    difficulty: z.string(),
+  });
+
+  const GenerateQuizOutputSchema = z.object({
+    flashcards: z.array(z.object({
+      id: z.string(),
+      question: z.string(),
+      answer: z.string(),
+      difficulty: z.string(),
+    })),
+  });
+
+  const generateQuizFlow = userAI.defineFlow(
+    {
+      name: 'generateQuizFlowBYOK',
+      inputSchema: GenerateQuizInputSchema,
+      outputSchema: GenerateQuizOutputSchema,
+    },
+    async (flowInput) => {
+      // Use the same prompt logic from your existing flow
+      const prompt = userAI.definePrompt({
+        name: 'generateQuizPromptBYOK',
+        input: { schema: GenerateQuizInputSchema },
+        output: { schema: GenerateQuizOutputSchema },
+        prompt: `Generate a quiz with {{quizLength}} flashcards based on the following material:
+
+{{material}}
+
+Difficulty: {{difficulty}}
+
+Create flashcards with clear questions and accurate answers.`,
+      });
+
+      const { output } = await prompt(flowInput);
+      if (!output) {
+        throw new Error("Failed to generate quiz: No output from model.");
+      }
+      return output;
+    }
+  );
+
+  return generateQuizFlow({
+    material: input.material,
+    quizLength: input.quizLength,
+    difficulty: input.difficulty,
+  });
+}
+
+// BYOK wrapper for dynamic notes generation
+export async function generateDynamicNotesWithBYOK(
+  input: {
+    material: string;
+    sourceName?: string;
+    apiKey: string;
+  }
+) {
+  const userAI = createUserAI(input.apiKey);
+  
+  const GenerateDynamicNotesInputSchema = z.object({
+    material: z.string(),
+    sourceName: z.string().optional(),
+  });
+
+  const GenerateDynamicNotesOutputSchema = z.object({
+    notes: z.string(),
+  });
+
+  const generateNotesFlow = userAI.defineFlow(
+    {
+      name: 'generateDynamicNotesFlowBYOK',
+      inputSchema: GenerateDynamicNotesInputSchema,
+      outputSchema: GenerateDynamicNotesOutputSchema,
+    },
+    async (flowInput) => {
+      const prompt = userAI.definePrompt({
+        name: 'generateNotesPromptBYOK',
+        input: { schema: GenerateDynamicNotesInputSchema },
+        output: { schema: GenerateDynamicNotesOutputSchema },
+        prompt: `Generate comprehensive and organized notes from the following material:
+
+{{material}}
+
+{{#if sourceName}}Source: {{sourceName}}{{/if}}
+
+Create well-structured notes in markdown format with clear headings, bullet points, and key concepts highlighted.`,
+      });
+
+      const { output } = await prompt(flowInput);
+      if (!output) {
+        throw new Error("Failed to generate notes: No output from model.");
+      }
+      return output;
+    }
+  );
+
+  return generateNotesFlow({
+    material: input.material,
+    sourceName: input.sourceName,
+  });
+}
+
+// BYOK wrapper for term explanation
+export async function explainTermWithBYOK(
+  input: {
+    term: string;
+    context?: string;
+    apiKey: string;
+  }
+) {
+  const userAI = createUserAI(input.apiKey);
+  
+  const ExplainTermInputSchema = z.object({
+    term: z.string(),
+    context: z.string().optional(),
+  });
+
+  const ExplainTermOutputSchema = z.object({
+    explanation: z.string(),
+    relatedLinks: z.array(z.object({
+      title: z.string(),
+      url: z.string(),
+    })).optional(),
+  });
+
+  const explainTermFlow = userAI.defineFlow(
+    {
+      name: 'explainTermFlowBYOK',
+      inputSchema: ExplainTermInputSchema,
+      outputSchema: ExplainTermOutputSchema,
+    },
+    async (flowInput) => {
+      const prompt = userAI.definePrompt({
+        name: 'explainTermPromptBYOK',
+        input: { schema: ExplainTermInputSchema },
+        output: { schema: ExplainTermOutputSchema },
+        prompt: `Explain the term "{{term}}" in a clear and concise way.
+
+{{#if context}}Context: {{context}}{{/if}}
+
+Provide a helpful explanation that a student would understand, formatted in markdown.`,
+      });
+
+      const { output } = await prompt(flowInput);
+      if (!output) {
+        throw new Error("Failed to generate explanation: No output from model.");
+      }
+      
+      if (!output.relatedLinks) {
+        output.relatedLinks = [];
+      }
+      
+      return output;
+    }
+  );
+
+  return explainTermFlow({
+    term: input.term,
+    context: input.context,
+  });
+}

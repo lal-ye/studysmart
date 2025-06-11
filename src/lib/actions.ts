@@ -1,3 +1,78 @@
+
+import { generateQuizWithBYOK, generateDynamicNotesWithBYOK, explainTermWithBYOK } from '@/lib/byok-actions';
+
+// BYOK version of generateQuizAction
+export async function generateQuizActionBYOK(input: {
+  material: string;
+  quizLength: number;
+  difficulty: string;
+  apiKey: string;
+}) {
+  try {
+    const result = await generateQuizWithBYOK(input);
+    
+    if (!result.flashcards) { 
+      console.warn('[StudySmarts Debug - generateQuizActionBYOK] AI returned null/undefined flashcards array.');
+      throw new Error("The AI model returned invalid quiz data. Please try again.");
+    }
+    
+    if (result.flashcards.length === 0 && input.quizLength > 0) { 
+      console.warn('[StudySmarts Debug - generateQuizActionBYOK] AI returned an empty set of flashcards when some were expected.');
+    }
+    
+    // Ensure IDs are strings
+    result.flashcards.forEach(fc => {
+      if (typeof fc.id !== 'string') {
+        fc.id = String(fc.id);
+      }
+    });
+    
+    return result.flashcards;
+  } catch (error) {
+    console.error('[StudySmarts Debug - generateQuizActionBYOK] Error generating quiz:', error);
+    if (error instanceof Error && error.message.includes('API key')) {
+      throw new Error('Invalid API key provided. Please check your Google AI API key.');
+    }
+    throw new Error(error instanceof Error ? error.message : 'Failed to generate quiz with provided API key.');
+  }
+}
+
+// BYOK version of generateDynamicNotesAction
+export async function generateDynamicNotesActionBYOK(input: {
+  material: string;
+  sourceName?: string;
+  apiKey: string;
+}) {
+  try {
+    const result = await generateDynamicNotesWithBYOK(input);
+    return result.notes;
+  } catch (error) {
+    console.error('[StudySmarts Debug - generateDynamicNotesActionBYOK] Error generating notes:', error);
+    if (error instanceof Error && error.message.includes('API key')) {
+      throw new Error('Invalid API key provided. Please check your Google AI API key.');
+    }
+    throw new Error(error instanceof Error ? error.message : 'Failed to generate notes with provided API key.');
+  }
+}
+
+// BYOK version of explainTermAction
+export async function explainTermActionBYOK(input: {
+  term: string;
+  context?: string;
+  apiKey: string;
+}) {
+  try {
+    return await explainTermWithBYOK(input);
+  } catch (error) {
+    console.error('[StudySmarts Debug - explainTermActionBYOK] Error explaining term:', error);
+    if (error instanceof Error && error.message.includes('API key')) {
+      throw new Error('Invalid API key provided. Please check your Google AI API key.');
+    }
+    throw new Error(error instanceof Error ? error.message : 'Failed to explain term with provided API key.');
+  }
+}
+
+
 'use server';
 
 // AI Flow function imports
