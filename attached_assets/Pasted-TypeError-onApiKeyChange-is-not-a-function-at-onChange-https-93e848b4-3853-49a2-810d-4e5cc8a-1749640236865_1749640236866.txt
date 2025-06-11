@@ -1,0 +1,16 @@
+TypeError: onApiKeyChange is not a function
+    at onChange (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/src_9f880f40._.js:3056:52)
+    at executeDispatch (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10876:13)
+    at runWithFiberInDEV (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:3501:74)
+    at processDispatchQueue (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10902:41)
+    at https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:11193:13
+    at batchedUpdates$1 (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:4345:44)
+    at dispatchEventForPluginEventSystem (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10978:9)
+    at dispatchEvent (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:13078:37)
+    at dispatchDiscreteEvent (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:13060:64)
+    at input (<anonymous>)
+    at _c (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/src_43a23df4._.js:539:214)
+    at APIKeyInput (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/src_9f880f40._.js:3051:235)
+    at QuizzesManager (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/src_9f880f40._.js:3869:231)
+    at SubjectPage (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/src_9f880f40._.js:6732:237)
+    at ClientPageRoot (https://93e848b4-3853-49a2-810d-4e5cc8afbadb-00-2u5gdhqc2ke5m.riker.replit.dev/_next/static/chunks/node_modules_next_dist_1a6ee436._.js:2053:50)
