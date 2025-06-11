@@ -411,7 +411,7 @@ export default function QuizzesManager({ subjectId, subjectName }: QuizzesManage
           </CardHeader>
           <CardContent className="space-y-4">
             <APIKeyInput apiKey={openAIKey} setApiKey={setOpenAIKey} />
-            <FileUpload onFileRead={handleFileRead} aria-label="Upload course material file" />
+            <FileUpload onFileRead={handleFileRead} apiKey={openAIKey} aria-label="Upload course material file" />
             <div><Label htmlFor="courseMaterialTextQuiz" className="font-bold">Course Material (Paste)</Label><Textarea id="courseMaterialTextQuiz" placeholder="Paste material..." value={courseMaterial} onChange={(e) => setCourseMaterial(e.target.value)} rows={8} className="min-h-[150px]" aria-label="Course material for quiz"/></div>
             <div><Label htmlFor="quizNameInput" className="font-bold">Quiz Name</Label><Input id="quizNameInput" placeholder="e.g., Chapter 1 Review" value={quizName} onChange={(e) => setQuizName(e.target.value)} aria-label="Quiz name"/></div>
             <div><Label htmlFor="quizLengthInput" className="font-bold">Number of Flashcards (1-20)</Label><Input id="quizLengthInput" type="number" value={quizLength} onChange={(e) => setQuizLength(Math.max(1, Math.min(20, parseInt(e.target.value,10) || 1)))} min="1" max="20" aria-label="Number of flashcards"/></div>

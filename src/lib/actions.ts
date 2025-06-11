@@ -1,7 +1,7 @@
 
 'use server';
 
-import { generateQuizWithBYOK, generateDynamicNotesWithBYOK, explainTermWithBYOK } from '@/lib/byok-actions';
+import { generateQuizWithBYOK, generateDynamicNotesWithBYOK, explainTermWithBYOK, extractTextFromPdfWithBYOK } from '@/lib/byok-actions';
 
 // BYOK version of generateQuizAction
 export async function generateQuizActionBYOK(input: {
@@ -71,6 +71,23 @@ export async function explainTermActionBYOK(input: {
       throw new Error('Invalid API key provided. Please check your Google AI API key.');
     }
     throw new Error(error instanceof Error ? error.message : 'Failed to explain term with provided API key.');
+  }
+}
+
+// BYOK version of extractTextFromPdfAction
+export async function extractTextFromPdfActionBYOK(input: {
+  pdfDataUri: string;
+  apiKey: string;
+}) {
+  try {
+    const result = await extractTextFromPdfWithBYOK(input);
+    return result;
+  } catch (error) {
+    console.error('[StudySmarts Debug - extractTextFromPdfActionBYOK] Error extracting PDF text:', error);
+    if (error instanceof Error && error.message.includes('API key')) {
+      throw new Error('Invalid API key provided. Please check your Google AI API key.');
+    }
+    throw new Error(error instanceof Error ? error.message : 'Failed to extract text from PDF with provided API key.');
   }
 }
 

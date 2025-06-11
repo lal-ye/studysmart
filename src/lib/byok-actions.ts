@@ -1,4 +1,4 @@
-
+python
 'use server';
 
 import { createUserAI } from '@/ai/genkit';
@@ -14,7 +14,7 @@ export async function generateQuizWithBYOK(
   }
 ) {
   const userAI = createUserAI(input.apiKey);
-  
+
   const GenerateQuizInputSchema = z.object({
     material: z.string(),
     quizLength: z.number(),
@@ -75,7 +75,7 @@ export async function generateDynamicNotesWithBYOK(
   }
 ) {
   const userAI = createUserAI(input.apiKey);
-  
+
   const GenerateDynamicNotesInputSchema = z.object({
     material: z.string(),
     sourceName: z.string().optional(),
@@ -128,7 +128,7 @@ export async function explainTermWithBYOK(
   }
 ) {
   const userAI = createUserAI(input.apiKey);
-  
+
   const ExplainTermInputSchema = z.object({
     term: z.string(),
     context: z.string().optional(),
@@ -164,11 +164,11 @@ Provide a helpful explanation that a student would understand, formatted in mark
       if (!output) {
         throw new Error("Failed to generate explanation: No output from model.");
       }
-      
+
       if (!output.relatedLinks) {
         output.relatedLinks = [];
       }
-      
+
       return output;
     }
   );
@@ -178,3 +178,55 @@ Provide a helpful explanation that a student would understand, formatted in mark
     context: input.context,
   });
 }
+
+export async function extractTextFromPdfWithBYOK(input: ExtractTextFromPdfInput & { apiKey: string }): Promise<ExtractTextFromPdfOutput> {
+  try {
+    const userAI = createUserAI(input.apiKey);
+
+    const ExtractTextFromPdfInputSchema = z.object({
+      pdfDataUri: z
+        .string()
+        .describe(
+          "The PDF file content as a data URI. Expected format: 'data:application/pdf;base64,<encoded_data>'."
+        ),
+    });
+
+    const ExtractTextFromPdfOutputSchema = z.object({
+      extractedText: z.string().describe('The extracted textual content from the PDF.'),
+    });
+
+    const pdfExtractionPrompt = userAI.definePrompt({
+      name: 'extractTextFromPdfPromptBYOK',
+      model: 'googleai/gemini-2.5-flash-preview-04-17',
+      input: { schema: ExtractTextFromPdfInputSchema },
+      output: { schema: ExtractTextFromPdfOutputSchema },
+      prompt: `Extract all textual content from the provided PDF document.
+      Output only the raw text. Do not include any additional commentary, formatting, or summarization.
+      PDF Document: {{media url=pdfDataUri}}`,
+    });
+
+    const extractTextFromPdfFlow = userAI.defineFlow(
+      {
+        name: 'extractTextFromPdfFlowBYOK',
+        inputSchema: ExtractTextFromPdfInputSchema,
+        outputSchema: ExtractTextFromPdfOutputSchema,
+      },
+      async (flowInput: ExtractTextFromPdfInput) => {
+        const { output } = await pdfExtractionPrompt(flowInput);
+        if (!output) {
+          throw new Error('Failed to extract text from PDF: No output from model.');
+        }
+        return output;
+      }
+    );
+
+    const result = await extractTextFromPdfFlow({ pdfDataUri: input.pdfDataUri });
+    return result;
+  } catch (error) {
+    console.error('Error in extractTextFromPdfWithBYOK:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to extract text from PDF');
+  }
+}
+```
+
+This code adds a BYOK version of the PDF extraction function `extractTextFromPdfWithBYOK` that accepts an API key.

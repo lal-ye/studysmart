@@ -7,19 +7,21 @@ import type React from 'react';
 import { useState, useTransition, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { FileUp, X } from 'lucide-react';
-import { extractTextFromPdfAction } from '@/lib/actions';
+import { extractTextFromPdfAction, extractTextFromPdfActionBYOK } from '@/lib/actions';
 import LoadingSpinner from './LoadingSpinner';
 
 interface FileUploadProps {
   onFileRead: (content: string, fileName?: string) => void;
   acceptedFileTypes?: string; // e.g., ".txt,.pdf"
   maxFileSizeMB?: number;
+  apiKey?: string; // For BYOK PDF processing
 }
 
 export default function FileUpload({
   onFileRead,
   acceptedFileTypes = '.txt,.pdf',
   maxFileSizeMB = 10,
+  apiKey,
 }: FileUploadProps) {
   const { toast } = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
@@ -120,7 +122,9 @@ export default function FileUpload({
           reader.onload = async (e_reader) => {
             const pdfDataUri = e_reader.target?.result as string;
             try {
-              const result = await extractTextFromPdfAction({ pdfDataUri });
+              const result = apiKey 
+                ? await extractTextFromPdfActionBYOK({ pdfDataUri, apiKey })
+                : await extractTextFromPdfAction({ pdfDataUri });
               onFileRead(result.extractedText, currentFileName);
               localStorage.setItem(cacheKey, result.extractedText); 
               setCachedFiles((prevFiles) => {
